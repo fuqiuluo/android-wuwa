@@ -337,7 +337,7 @@ int do_create_dma_buf(struct socket *sock, void *arg) {
 }
 
 int do_pte_mapping(struct socket *sock, void *arg) {
-    struct wuwa_sock* wuwa_sock = (struct wuwa_sock *)sock->sk;
+    struct wuwa_sock* ws = (struct wuwa_sock *)sock->sk;
     struct wuwa_pte_mapping_cmd cmd;
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
@@ -395,86 +395,106 @@ int do_pte_mapping(struct socket *sock, void *arg) {
 #define my_pte_alloc(mm, pmd) (unlikely(pmd_none(*(pmd))) && my__pte_alloc(mm, pmd))
 #define my_pte_alloc_map(mm, pmd, address) (my_pte_alloc(mm, pmd) ? NULL : pte_offset_map(pmd, address))
 
-    page = alloc_pages(GFP_USER | __GFP_ZERO, get_order(cmd.num_pages * PAGE_SIZE));
-    if (!page) {
-        wuwa_err("failed to allocate pages\n");
+    unsigned long addr = cmd.start_addr;
+    size_t i;
+    struct page **page_arr = kmalloc_array(cmd.num_pages, sizeof(struct page *), GFP_KERNEL);
+    if (!page_arr) {
+        wuwa_err("failed to allocate page array\n");
         ret = -ENOMEM;
         goto out_mm;
     }
 
-    pgd = pgd_offset(mm, cmd.start_addr);
-    if (pgd_none(*pgd) || pgd_bad(*pgd)) {
-        wuwa_err("invalid pgd\n");
-        ret = -EINVAL;
-        goto out_page;
-    }
-
-    p4d = p4d_alloc(mm, pgd, cmd.start_addr);
-    if (!p4d) {
-        wuwa_err("failed to allocate p4d\n");
-        ret = -ENOMEM;
-        goto out_page;
-    }
-
-    pud = pud_alloc(mm, p4d, cmd.start_addr);
-    if (!pud) {
-        wuwa_err("failed to allocate pud\n");
-        ret = -ENOMEM;
-        goto out_page;
-    }
-
-    if (unlikely(pud_none(*pud))) {
-        if (my__pmd_alloc(mm, pud, cmd.start_addr)) {
-            wuwa_err("failed to allocate pmd\n");
-            ret = -ENOMEM;
-            goto out_page;
+    for (i = 0; i < cmd.num_pages; i++) {
+        pgd = pgd_offset(mm, addr);
+        if (pgd_none(*pgd) || pgd_bad(*pgd)) {
+            ret = -EINVAL;
+            wuwa_err("bad pgd for 0x%lx\n", addr);
+            goto rollback;
         }
-    }
-    pmd = pmd_offset(pud, cmd.start_addr);
-    if (!pmd) {
-        wuwa_err("failed to get pmd\n");
-        ret = -ENOMEM;
-        goto out_page;
-    }
 
-    pte = my_pte_alloc_map(mm, pmd, cmd.start_addr);
-    if (!pte) {
-        wuwa_err("failed to allocate or map pte\n");
-        ret = -ENOMEM;
-        goto out_page;
-    }
+        p4d = p4d_alloc(mm, pgd, addr);
+        if (!p4d) { ret = -ENOMEM; goto rollback; }
 
-    if (!pte_none(*pte)) {
-        wuwa_warn("pte already in use at address 0x%lx\n", cmd.start_addr);
+        pud = pud_alloc(mm, p4d, addr);
+        if (!pud) { ret = -ENOMEM; goto rollback; }
+
+        if (unlikely(pud_none(*pud))) {
+            if (my__pmd_alloc(mm, pud, addr)) {
+                wuwa_err("failed to allocate pmd\n");
+                ret = -ENOMEM;
+                goto rollback;
+            }
+        }
+
+        pmd = pmd_offset(pud, addr);
+        if (!pmd) {
+            wuwa_err("failed to get pmd\n");
+            ret = -ENOMEM;
+            goto rollback;
+        }
+
+        pte = my_pte_alloc_map(mm, pmd, addr);
+        if (!pte) {
+            ret = -ENOMEM;
+            wuwa_err("failed to allocate pte for address 0x%lx\n", addr);
+            goto rollback;
+        }
+        if (!pte_none(*pte)) {
+            ret = -EEXIST;
+            wuwa_err("pte already exists for address 0x%lx\n", addr);
+            pte_unmap(pte);
+            goto rollback;
+        }
+
+        page = alloc_page(GFP_USER | __GFP_ZERO);
+        if (!page) {
+            ret = -ENOMEM;
+            wuwa_err("failed to allocate page %zu\n", i);
+            pte_unmap(pte);
+            goto rollback;
+        }
+        page_arr[i] = page;
+
+        pte_t new_pte = mk_pte(page, PAGE_SHARED_EXEC);
+        new_pte = pte_mkwrite(pte_mkdirty(pte_mkyoung(new_pte)));
+        set_pte(pte, new_pte);
         pte_unmap(pte);
-        ret = -EEXIST;
-        goto out_page;
+
+        wuwa_info("mapped page %zu at address 0x%lx\n", i, addr);
+        addr += PAGE_SIZE;
     }
-
-    pte_t new_pte = mk_pte(page, PAGE_SHARED_EXEC);
-    new_pte = pte_mkwrite(new_pte);
-    new_pte = pte_mkdirty(new_pte);
-    new_pte = pte_mkyoung(new_pte);
-
-    set_pte(pte, new_pte);
-
-    pte_unmap(pte);
 
     flush_tlb_all();
 
     mmput(mm);
 
+    for (int i = 0; i < cmd.num_pages; ++i) {
+        struct page* p = page_arr[i];
+
+        if (!p) {
+            wuwa_err("page %d is NULL\n", i);
+            continue;
+        }
+
+        if (!ws->used_pages) {
+            wuwa_err("used_pages array not initialized\n");
+            break;
+        }
+
+        arraylist_add(ws->used_pages, p);
+    }
+    kfree(page_arr);
+
     if (cmd.hide) {
-        wuwa_add_unsafe_region(wuwa_sock->session, task->cred->uid.val, cmd.start_addr, cmd.num_pages);
+        wuwa_add_unsafe_region(ws->session, task->cred->uid.val, cmd.start_addr, cmd.num_pages);
     }
 
     wuwa_info("successfully mapped page at address 0x%lx for pid %d\n", cmd.start_addr, cmd.pid);
     return 0;
 
-out_page:
-    if (page) {
-        __free_pages(page, get_order(cmd.num_pages * PAGE_SIZE));
-    }
+    rollback:
+    while (i--)
+        __free_page(page_arr[i]);
 out_mm:
     mmput(mm);
     return ret;

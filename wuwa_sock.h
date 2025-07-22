@@ -13,6 +13,4 @@ struct wuwa_sock;
 
 extern struct proto_ops wuwa_proto_ops;
 
-unsigned long wuwa_new_zeroed_page(struct wuwa_sock *ws);
-
 #endif //WUWA_SOCK_H

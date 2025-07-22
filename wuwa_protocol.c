@@ -84,9 +84,8 @@ static int wuwa_sock_create(struct net *net, struct socket *sock, int protocol,
 
     struct wuwa_sock *ws = (struct wuwa_sock *) sk;
     ws->version = 1;
-    ws->page_address_array = NULL;
-    ws->page_size = 0;
     ws->session = current->pid;
+    ws->used_pages = arraylist_create(10);
 
     return 0;
 }

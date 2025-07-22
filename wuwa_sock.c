@@ -18,16 +18,19 @@ static int wuwa_release(struct socket *sock) {
     struct wuwa_sock *ws = (struct wuwa_sock *) sk;
     ws->version = 0;
 
-    if (ws->page_address_array) {
-        for (int i = 0; i < ws->page_size; ++i) {
-            free_pages(ws->page_address_array[i], GFP_KERNEL);
-        }
-    }
-    kfree(ws->page_address_array);
-
     if (ws->session) {
         wuwa_del_unsafe_region(ws->session);
         ws->session = 0;
+    }
+
+    if (ws->used_pages) {
+        for (int i = 0; i < ws->used_pages->size; ++i) {
+            struct page *page = (typeof(page)) arraylist_get(ws->used_pages, i);
+            if (page) {
+                __free_page(page);
+            }
+        }
+        arraylist_destroy(ws->used_pages);
     }
 
     sock_orphan(sk);
@@ -87,22 +90,3 @@ struct proto_ops wuwa_proto_ops = {
     .recvmsg	= sock_no_recvmsg,
     .mmap		= sock_no_mmap,
 };
-
-unsigned long wuwa_new_zeroed_page(struct wuwa_sock *ws) {
-    if (!ws->page_address_array) {
-        ws->page_address_array = (uintptr_t*)kmalloc(sizeof(uintptr_t) * 128, GFP_KERNEL);
-        if (!ws->page_address_array) {
-            wuwa_err("kmalloc failed: wuwa_new_zero_page\n");
-            return 0;
-        }
-    }
-
-    unsigned long page = get_zeroed_page(GFP_KERNEL);
-    if (!page) {
-        wuwa_err("get_zeroed_page failed: wuwa_new_zero_page\n");
-        return 0;
-    }
-
-    ws->page_address_array[ws->page_size++] = page;
-    return page;
-}

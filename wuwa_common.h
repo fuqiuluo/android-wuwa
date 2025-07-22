@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 #include <linux/net.h>
 #include <net/sock.h>
+#include "wuwa_utils.h"
 
 #define WUWA_LOG_PREFIX "[wuwa] "
 #define wuwa_info(fmt, ...) pr_info(WUWA_LOG_PREFIX fmt, ##__VA_ARGS__)
@@ -26,8 +27,8 @@
 
 #define LUCKY_LUO 0x00000000faceb00c
 
-#define CONFIG_COMPARE_TASK 1
-#define CONFIG_COMPARE_PT_REGS 1
+#define CONFIG_COMPARE_TASK 0
+#define CONFIG_COMPARE_PT_REGS 0
 
 /*
  * !!!Poor performance!!!
@@ -41,19 +42,19 @@
  *  > is only used for learning and verification that
  *     it can be injected into the executable memory and executed normally without any trace.
  */
-#define CONFIG_REDIRECT_VIA_SIGNAL 1
+#define CONFIG_REDIRECT_VIA_SIGNAL 0
+
+#define CMD_MAX_BYTES  (50 * 1024 * 1024)
+#define CMD_MAX_PAGES  (CMD_MAX_BYTES / PAGE_SIZE)
 
 struct wuwa_sock {
     struct sock sk;
 
     int version;
 
-    struct {
-        uintptr_t* page_address_array;
-        size_t page_size;
-    } __attribute__((aligned(8)));
-
     pid_t session;
+
+    struct karray_list* used_pages;
 };
 
 struct wuwa_dmabuf_private {
