@@ -5,3 +5,11 @@ lkm-devtools.toml
 lkm-devtools
 wuwa_cproc.c
 wuwa_cproc.h
+wuwa_core.c
+wuwa_core.h
+wuwa_inlinehook.h
+wuwa_inlinehook.c
+wuwa_gpu.h
+wuwa_gpu.c
+wuwa_msm.h
+wuwa_msm.c
