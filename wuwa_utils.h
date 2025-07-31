@@ -36,6 +36,17 @@ int disable_kprobe_blacklist(void);
 void compare_pt_regs(struct pt_regs* regs1, struct pt_regs* regs2);
 void compare_task_struct(struct task_struct *task1, struct task_struct *task2);
 
+static __always_inline void set_current(struct task_struct *tsk)
+{
+    unsigned long tmp = (unsigned long)tsk;
+
+    asm volatile("msr sp_el0, %0"
+             :
+             : "r"(tmp)
+             : "memory");
+}
+
+
 #define ARRAYLIST_DEFAULT_CAPACITY 16
 
 struct karray_list {

@@ -14,6 +14,7 @@
 #include <asm/pgtable-types.h>
 
 #include "wuwa_safe_signal.h"
+#include "wuwa_cproc.h"
 
 int do_vaddr_translate(struct socket *sock, void *arg) {
     struct wuwa_addr_translate_cmd cmd;
@@ -532,5 +533,71 @@ int do_page_table_walk(struct socket *sock, void *arg) {
     mmput(mm);
 
     return 0;
+}
+
+// static void (*wake_up_new_task)(struct task_struct *tsk) = NULL;
+// if (!wake_up_new_task) {
+//     wake_up_new_task = (void (*)(struct task_struct *))kallsyms_lookup_name("wake_up_new_task");
+// }
+//
+// wake_up_new_task(p);
+// static __latent_entropy struct task_struct *(*copy_process)(
+//             struct pid *pid,
+//             int trace,
+//             int node,
+//             struct kernel_clone_args *args) = NULL;
+// if (copy_process == NULL) {
+//     copy_process = (typeof(copy_process))kallsyms_lookup_name("copy_process");
+// }
+//
+// if (!copy_process) {
+//     ovo_warn("copy_process symbol not found\n");
+//     return -ENOENT;
+// }
+// __latent_entropy struct task_struct *copy_process(
+//                     struct pid *pid,
+//                     int trace,
+//                     int node,
+//                     struct kernel_clone_args *args)
+int do_copy_process(struct socket *sock, void *arg) {
+    int ret = 0;
+    struct wuwa_copy_process_cmd cmd;
+    struct pid *pid;
+    struct task_struct *task, *p;
+    
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+    
+    if (!cmd.fn || !cmd.child_stack) {
+        wuwa_err("invalid function pointer or child stack\n");
+        return -EINVAL;
+    }
+    
+    
+    pid = find_get_pid(cmd.pid);
+    if (!pid) {
+        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+    
+    task = get_pid_task(pid, PIDTYPE_PID);
+    put_pid(pid);
+    if (!task) {
+        wuwa_warn("failed to get task: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+    
+    ret = create_remote_thread(task, &p, cmd.child_tid, NULL, cmd.flags);
+    put_task_struct(task);
+    if (ret) {
+        wuwa_err("failed to create remote thread: %d\n", ret);
+        goto prepare_fault;
+    }
+    
+    return 0;
+    
+    prepare_fault:
+    return ret;
 }
 

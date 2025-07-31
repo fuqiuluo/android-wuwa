@@ -30,6 +30,7 @@
 #define CONFIG_COMPARE_TASK 0
 #define CONFIG_COMPARE_PT_REGS 0
 
+#define CONFIG_COPY_PROCESS 0
 /*
  * !!!Poor performance!!!
  */

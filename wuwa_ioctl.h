@@ -74,6 +74,17 @@ struct wuwa_page_table_walk_cmd {
     pid_t pid;
 };
 
+struct wuwa_copy_process_cmd {
+    pid_t pid;
+    int (* __user fn)(void*);
+    void* __user child_stack;
+    size_t child_stack_size;
+    u64 flags;
+    void* __user arg;
+
+    int __user* child_tid;
+};
+
 /* IOCTL command for virtual to physical address translation */
 #define WUWA_IOCTL_ADDR_TRANSLATE       _IOWR('W', 1, struct wuwa_addr_translate_cmd)
 /* IOCTL command for debugging information */
@@ -88,6 +99,7 @@ struct wuwa_page_table_walk_cmd {
 #define WUWA_IOCTL_PTE_MAPPING _IOWR('W', 6, struct wuwa_pte_mapping_cmd)
 /* IOCTL command for page table walk */
 #define WUWA_IOCTL_PAGE_TABLE_WALK _IOWR('W', 7, struct wuwa_page_table_walk_cmd)
+#define WUWA_IOCTL_COPY_PROCESS _IOWR('W', 8, struct wuwa_copy_process_cmd)
 
 int do_vaddr_translate(struct socket *sock, void __user * arg);
 int do_debug_info(struct socket *sock, void __user * arg);
@@ -96,6 +108,7 @@ int do_get_page_info(struct socket *sock, void __user * arg);
 int do_create_dma_buf(struct socket *sock, void __user * arg);
 int do_pte_mapping(struct socket *sock, void __user * arg);
 int do_page_table_walk(struct socket *sock, void __user * arg);
+int do_copy_process(struct socket *sock, void __user * arg);
 
 typedef int (*ioctl_handler_t)(struct socket *sock, void __user * arg);
 
@@ -110,6 +123,7 @@ static const struct ioctl_cmd_map {
     { .cmd = WUWA_IOCTL_DMA_BUF_CREATE, .handler = do_create_dma_buf },
     { .cmd = WUWA_IOCTL_PTE_MAPPING, .handler = do_pte_mapping },
     { .cmd = WUWA_IOCTL_PAGE_TABLE_WALK, .handler = do_page_table_walk },
+    { .cmd = WUWA_IOCTL_COPY_PROCESS, .handler = do_copy_process },
     { .cmd = 0, .handler = NULL } /* Sentinel to mark end of array */
 };
 

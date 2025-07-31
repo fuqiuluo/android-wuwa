@@ -15,6 +15,7 @@
 #include "wuwa_utils.h"
 #include "wuwa_safe_signal.h"
 #include "wuwa_d0_mm_fault.h"
+#include "wuwa_kallsyms.h"
 
 static int __init wuwa_init(void) {
     int ret;
@@ -66,9 +67,9 @@ static void __exit wuwa_exit(void) {
 module_init(wuwa_init);
 module_exit(wuwa_exit);
 
-MODULE_AUTHOR("wuwa233");
+MODULE_AUTHOR("fuqiuluo");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("https://github.com/wuwa233");
-MODULE_VERSION("1.0.0");
+MODULE_DESCRIPTION("https://github.com/fuqiuluo/android-wuwa");
+MODULE_VERSION("1.0.1");
 
 MODULE_IMPORT_NS(DMA_BUF);

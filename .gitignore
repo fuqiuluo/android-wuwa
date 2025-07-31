@@ -3,3 +3,5 @@ compile_commands.json
 lkm-devtools.toml
 /build
 lkm-devtools
+wuwa_cproc.c
+wuwa_cproc.h
