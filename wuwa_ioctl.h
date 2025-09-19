@@ -85,6 +85,22 @@ struct wuwa_copy_process_cmd {
     int __user* child_tid;
 };
 
+struct wuwa_read_physical_memory_cmd {
+    pid_t pid; /* Input: Process ID owning the virtual address */
+    uintptr_t src_va; /* Input: Virtual address to access */
+    uintptr_t dst_va; /* Output: Virtual address to write */
+    size_t size; /* Input: Size of memory to read */
+    uintptr_t phy_addr; /* Output: Physical address of the source virtual address */
+};
+
+struct wuwa_get_module_base_cmd {
+    pid_t pid; /* Input: Process ID owning the virtual address */
+    char name[256]; /* Input: Module name */
+    uintptr_t base; /* Output: Base address of the module */
+    int vm_flag; /* Input: VM flag to filter (e.g., VM_EXEC) */
+};
+
+
 /* IOCTL command for virtual to physical address translation */
 #define WUWA_IOCTL_ADDR_TRANSLATE       _IOWR('W', 1, struct wuwa_addr_translate_cmd)
 /* IOCTL command for debugging information */
@@ -100,6 +116,8 @@ struct wuwa_copy_process_cmd {
 /* IOCTL command for page table walk */
 #define WUWA_IOCTL_PAGE_TABLE_WALK _IOWR('W', 7, struct wuwa_page_table_walk_cmd)
 #define WUWA_IOCTL_COPY_PROCESS _IOWR('W', 8, struct wuwa_copy_process_cmd)
+#define WUWA_IOCTL_READ_MEMORY _IOWR('W', 9, struct wuwa_read_physical_memory_cmd)
+#define WUWA_IOCTL_GET_MODULE_BASE _IOWR('W', 10, struct wuwa_get_module_base_cmd)
 
 int do_vaddr_translate(struct socket *sock, void __user * arg);
 int do_debug_info(struct socket *sock, void __user * arg);
@@ -109,6 +127,8 @@ int do_create_dma_buf(struct socket *sock, void __user * arg);
 int do_pte_mapping(struct socket *sock, void __user * arg);
 int do_page_table_walk(struct socket *sock, void __user * arg);
 int do_copy_process(struct socket *sock, void __user * arg);
+int do_read_physical_memory(struct socket *sock, void __user * arg);
+int do_get_module_base(struct socket *sock, void __user * arg);
 
 typedef int (*ioctl_handler_t)(struct socket *sock, void __user * arg);
 
@@ -124,6 +144,8 @@ static const struct ioctl_cmd_map {
     { .cmd = WUWA_IOCTL_PTE_MAPPING, .handler = do_pte_mapping },
     { .cmd = WUWA_IOCTL_PAGE_TABLE_WALK, .handler = do_page_table_walk },
     { .cmd = WUWA_IOCTL_COPY_PROCESS, .handler = do_copy_process },
+    { .cmd = WUWA_IOCTL_READ_MEMORY, .handler = do_read_physical_memory },
+    { .cmd = WUWA_IOCTL_GET_MODULE_BASE, .handler = do_get_module_base },
     { .cmd = 0, .handler = NULL } /* Sentinel to mark end of array */
 };
 

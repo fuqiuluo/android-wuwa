@@ -33,25 +33,26 @@ static int __init wuwa_init(void) {
         goto out;
     }
 
-    ret = wuwa_safe_signal_init();
-    if (ret) {
-        wuwa_err("wuwa_safe_signal_init failed: %d\n", ret);
-        goto clean_sig;
-    }
-
-    ret = init_d0_mm_fault();
-    if (ret) {
-        wuwa_err("init_d0_mm_fault failed: %d\n", ret);
-        goto clean_d0;
-    }
+    // 不需要这些东西
+    // ret = wuwa_safe_signal_init();
+    // if (ret) {
+    //     wuwa_err("wuwa_safe_signal_init failed: %d\n", ret);
+    //     goto clean_sig;
+    // }
+    //
+    // ret = init_d0_mm_fault();
+    // if (ret) {
+    //     wuwa_err("init_d0_mm_fault failed: %d\n", ret);
+    //     goto clean_d0;
+    // }
 
     return 0;
 
-    clean_d0:
-    wuwa_safe_signal_cleanup();
-
-    clean_sig:
-    wuwa_proto_cleanup();
+    // clean_d0:
+    // wuwa_safe_signal_cleanup();
+    //
+    // clean_sig:
+    // wuwa_proto_cleanup();
 
     out:
     return ret;
@@ -60,8 +61,8 @@ static int __init wuwa_init(void) {
 static void __exit wuwa_exit(void) {
     wuwa_info("bye!\n");
     wuwa_proto_cleanup();
-    wuwa_safe_signal_cleanup();
-    cleanup_d0_mm_fault();
+    // wuwa_safe_signal_cleanup();
+    // cleanup_d0_mm_fault();
 }
 
 module_init(wuwa_init);

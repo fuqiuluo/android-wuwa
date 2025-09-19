@@ -14,7 +14,6 @@
 #include <asm/pgtable-types.h>
 
 #include "wuwa_safe_signal.h"
-#include "wuwa_cproc.h"
 
 int do_vaddr_translate(struct socket *sock, void *arg) {
     struct wuwa_addr_translate_cmd cmd;
@@ -338,12 +337,16 @@ int do_create_dma_buf(struct socket *sock, void *arg) {
 }
 
 int do_pte_mapping(struct socket *sock, void *arg) {
-    struct wuwa_sock* ws = (struct wuwa_sock *)sock->sk;
-    struct wuwa_pte_mapping_cmd cmd;
-    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
-        return -EFAULT;
-    }
+    // struct wuwa_sock* ws = (struct wuwa_sock *)sock->sk;
+    // struct wuwa_pte_mapping_cmd cmd;
+    // if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+	   //  return -EFAULT;
+    // }
 
+    return -EFAULT;
+    /*
+ * todo 6.6.66 pte _offset_map符号无了
+ *struct pid *pid_struct = find_get_pid(cmd.pid);
     if (cmd.start_addr < 0 || cmd.start_addr >= TASK_SIZE_64) {
         wuwa_warn("invalid start address: 0x%lx\n", cmd.start_addr);
         return -EINVAL;
@@ -394,7 +397,7 @@ int do_pte_mapping(struct socket *sock, void *arg) {
     }
 
 #define my_pte_alloc(mm, pmd) (unlikely(pmd_none(*(pmd))) && my__pte_alloc(mm, pmd))
-#define my_pte_alloc_map(mm, pmd, address) (my_pte_alloc(mm, pmd) ? NULL : pte_offset_map(pmd, address))
+#define my_pte_alloc_map(mm, pmd, address) (my_pte_alloc(mm, pmd) ? NULL : pte _offset_map(pmd, address))
 
     unsigned long addr = cmd.start_addr;
     size_t i;
@@ -457,7 +460,8 @@ int do_pte_mapping(struct socket *sock, void *arg) {
         page_arr[i] = page;
 
         pte_t new_pte = mk_pte(page, PAGE_SHARED_EXEC);
-        new_pte = pte_mkwrite(pte_mkdirty(pte_mkyoung(new_pte)));
+        // 6.6 无法编译，注释，该功能可能异常
+        //new_pte = pte_mkwrite(pte_mkdirty(pte_mkyoung(new_pte)));
         set_pte(pte, new_pte);
         pte_unmap(pte);
 
@@ -498,7 +502,7 @@ int do_pte_mapping(struct socket *sock, void *arg) {
         __free_page(page_arr[i]);
 out_mm:
     mmput(mm);
-    return ret;
+    return ret;*/
 }
 
 int do_page_table_walk(struct socket *sock, void *arg) {
@@ -563,41 +567,124 @@ int do_copy_process(struct socket *sock, void *arg) {
     int ret = 0;
     struct wuwa_copy_process_cmd cmd;
     struct pid *pid;
-    struct task_struct *task, *p;
-    
+    struct task_struct *task/*, *p*/;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
-    
+
     if (!cmd.fn || !cmd.child_stack) {
         wuwa_err("invalid function pointer or child stack\n");
         return -EINVAL;
     }
-    
-    
+
+
     pid = find_get_pid(cmd.pid);
     if (!pid) {
         wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
         return -ESRCH;
     }
-    
+
     task = get_pid_task(pid, PIDTYPE_PID);
     put_pid(pid);
     if (!task) {
         wuwa_warn("failed to get task: %d\n", cmd.pid);
         return -ESRCH;
     }
-    
-    ret = create_remote_thread(task, &p, cmd.child_tid, NULL, cmd.flags);
+
+    ret = -1;
+    // cproc源码无了，这里取消
+    //ret = create_remote_thread(task, &p, cmd.child_tid, NULL, cmd.flags);
     put_task_struct(task);
     if (ret) {
         wuwa_err("failed to create remote thread: %d\n", ret);
         goto prepare_fault;
     }
-    
+
     return 0;
-    
+
     prepare_fault:
     return ret;
 }
 
+#if !defined(ARCH_HAS_VALID_PHYS_ADDR_RANGE) || defined(MODULE)
+static inline int memk_valid_phys_addr_range(phys_addr_t addr, size_t size)
+{
+    return addr + size <= __pa(high_memory);
+}
+#define IS_VALID_PHYS_ADDR_RANGE(x,y) memk_valid_phys_addr_range(x,y)
+#else
+#define IS_VALID_PHYS_ADDR_RANGE(x,y) valid_phys_addr_range(x,y)
+#endif
+
+int do_read_physical_memory(struct socket *sock, void __user * arg) {
+    struct wuwa_read_physical_memory_cmd cmd;
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    struct pid* pid_struct = find_get_pid(cmd.pid);
+    if (!pid_struct) {
+        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+
+    struct task_struct *task = get_pid_task(pid_struct, PIDTYPE_PID);
+    put_pid(pid_struct);
+    if (!task) {
+        wuwa_warn("failed to get task: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+
+    struct mm_struct *mm = get_task_mm(task);
+    put_task_struct(task);
+    if (!mm) {
+        wuwa_warn("failed to get mm: %d\n", cmd.pid);
+        put_task_struct(task);
+        return -ESRCH;
+    }
+
+    cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.src_va);
+    mmput(mm);
+    if (cmd.phy_addr == 0) {
+        return -EFAULT;
+    }
+
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    phys_addr_t pa = cmd.phy_addr;
+    if (pa && pfn_valid(__phys_to_pfn(pa)) && IS_VALID_PHYS_ADDR_RANGE(pa, cmd.size)) {
+        void* mapped = phys_to_virt(pa);
+        if (!mapped) {
+            return -ENOMEM;
+        } else if (copy_to_user((void*)cmd.dst_va, mapped, cmd.size)) {
+            return -EACCES;
+        }
+        return 0;
+    } else {
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
+int do_get_module_base(struct socket *sock, void __user * arg) {
+    struct wuwa_get_module_base_cmd cmd;
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    uintptr_t base = get_module_base(cmd.pid, cmd.name, cmd.vm_flag);
+    if (base == 0) {
+        return -ENAVAIL;
+    }
+
+    cmd.base = base;
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    return 0;
+}

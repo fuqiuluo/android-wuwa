@@ -46,6 +46,7 @@ static __always_inline void set_current(struct task_struct *tsk)
              : "memory");
 }
 
+uintptr_t get_module_base(pid_t pid, char *name, int vm_flag);
 
 #define ARRAYLIST_DEFAULT_CAPACITY 16
 

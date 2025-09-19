@@ -32,7 +32,9 @@ static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
     if (end < pte_end)
         pte_end = end;
 
-    ptep = pte_offset_map(pmd, addr);
+    // todo 6.6.66内核该符号找不到
+    //ptep = pte _offset_map(pmd, addr);
+    ptep = NULL;
     if (!ptep) {
         return;
     }

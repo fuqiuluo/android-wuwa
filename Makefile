@@ -9,8 +9,7 @@ $(MODULE)-objs := \
     wuwa_ioctl.o \
     wuwa_page_walk.o \
     wuwa_safe_signal.o \
-    wuwa_d0_mm_fault.o \
-    wuwa_cproc.o
+    wuwa_d0_mm_fault.o
 
 all:
 	make -C $(KDIR) M=$(PWD) modules

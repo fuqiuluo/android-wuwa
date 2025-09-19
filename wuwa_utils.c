@@ -49,11 +49,13 @@ pte_t *page_from_virt_user(struct mm_struct *mm, uintptr_t va) {
         goto out;
     }
 
-    ptep = pte_offset_map(pmd, va);
-    if (!ptep) {
-        wuwa_warn("Failed to map PTE for address 0x%lx\n", va);
-        goto out;
-    }
+    // todo 6.6.66内核该符号找不到
+    return NULL;
+    // ptep = pte _offset_map(pmd, va);
+    // if (!ptep) {
+    //     wuwa_warn("Failed to map PTE for address 0x%lx\n", va);
+    //     goto out;
+    // }
 out:
     MM_READ_UNLOCK(mm);
 
@@ -229,6 +231,75 @@ struct page* vaddr_to_page(struct mm_struct *mm, uintptr_t va) {
 #error "vaddr_to_page failed: pfn_to_page not found"
 #endif
     return pfn_to_page(wuwa_phys_to_pfn(vaddr_to_phy_addr(mm, va)));
+}
+
+uintptr_t get_module_base(pid_t pid, char *name, int vm_flag) {
+    struct pid *pid_struct;
+    struct task_struct *task;
+    struct mm_struct *mm;
+    struct vm_area_struct *vma;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+    struct vma_iterator vmi;
+#endif
+    uintptr_t result;
+    struct dentry *dentry;
+    size_t name_len, dname_len;
+
+    result = 0;
+
+    name_len = strlen(name);
+    if (name_len == 0) {
+        wuwa_err("module name is empty\n");
+        return 0;
+    }
+
+    pid_struct = find_get_pid(pid);
+    if (!pid_struct) {
+        wuwa_err("failed to find pid_struct\n");
+        return 0;
+    }
+
+    task = get_pid_task(pid_struct, PIDTYPE_PID);
+    put_pid(pid_struct);
+    if (!task) {
+        wuwa_err("failed to get task from pid_struct\n");
+        return 0;
+    }
+
+    mm = get_task_mm(task);
+    put_task_struct(task);
+    if (!mm) {
+        wuwa_err("failed to get mm from task\n");
+        return 0;
+    }
+
+    MM_READ_LOCK(mm)
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+    vma_iter_init(&vmi, mm, 0);
+    for_each_vma(vmi, vma)
+#else
+        for (vma = mm->mmap; vma; vma = vma->vm_next)
+#endif
+        {
+            if (vma->vm_file) {
+                if (vm_flag && !(vma->vm_flags & vm_flag)) {
+                    continue;
+                }
+                dentry = vma->vm_file->f_path.dentry;
+                dname_len = dentry->d_name.len;
+                if (!memcmp(dentry->d_name.name, name, min(name_len, dname_len))) {
+                    result = vma->vm_start;
+                    goto ret;
+                }
+            }
+        }
+
+    ret:
+    MM_READ_UNLOCK(mm)
+
+    mmput(mm);
+    return result;
 }
 
 struct karray_list * arraylist_create(size_t initial_capacity) {
