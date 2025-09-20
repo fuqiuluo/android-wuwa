@@ -49,13 +49,11 @@ pte_t *page_from_virt_user(struct mm_struct *mm, uintptr_t va) {
         goto out;
     }
 
-    // todo 6.6.66内核该符号找不到
-    return NULL;
-    // ptep = pte _offset_map(pmd, va);
-    // if (!ptep) {
-    //     wuwa_warn("Failed to map PTE for address 0x%lx\n", va);
-    //     goto out;
-    // }
+    ptep = pte_offset_kernel(pmd, va);
+    if (!ptep) {
+        wuwa_warn("Failed to map PTE for address 0x%lx\n", va);
+        goto out;
+    }
 out:
     MM_READ_UNLOCK(mm);
 
