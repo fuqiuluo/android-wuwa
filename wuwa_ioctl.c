@@ -688,3 +688,21 @@ int do_get_module_base(struct socket *sock, void __user * arg) {
 
     return 0;
 }
+
+int do_find_process(struct socket *sock, void *arg){
+	struct wuwa_find_proc_cmd cmd;
+	if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+		return -EFAULT;
+	}
+
+	cmd.pid = find_process_by_name(cmd.name);
+	if (cmd.pid == 0) {
+		return -ENAVAIL;
+	}
+
+	if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+		return -EFAULT;
+	}
+
+	return 0;
+}

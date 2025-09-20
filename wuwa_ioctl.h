@@ -94,12 +94,16 @@ struct wuwa_read_physical_memory_cmd {
 };
 
 struct wuwa_get_module_base_cmd {
-    pid_t pid; /* Input: Process ID owning the virtual address */
+    pid_t pid; /* Input: Process ID */
     char name[256]; /* Input: Module name */
     uintptr_t base; /* Output: Base address of the module */
     int vm_flag; /* Input: VM flag to filter (e.g., VM_EXEC) */
 };
 
+struct wuwa_find_proc_cmd {
+    pid_t pid; /* Output: Process ID */
+    char name[256]; /* Input: Process name */
+};
 
 /* IOCTL command for virtual to physical address translation */
 #define WUWA_IOCTL_ADDR_TRANSLATE       _IOWR('W', 1, struct wuwa_addr_translate_cmd)
@@ -118,6 +122,7 @@ struct wuwa_get_module_base_cmd {
 #define WUWA_IOCTL_COPY_PROCESS _IOWR('W', 8, struct wuwa_copy_process_cmd)
 #define WUWA_IOCTL_READ_MEMORY _IOWR('W', 9, struct wuwa_read_physical_memory_cmd)
 #define WUWA_IOCTL_GET_MODULE_BASE _IOWR('W', 10, struct wuwa_get_module_base_cmd)
+#define WUWA_IOCTL_FIND_PROCESS _IOWR('W', 11, struct wuwa_find_proc_cmd)
 
 int do_vaddr_translate(struct socket *sock, void __user * arg);
 int do_debug_info(struct socket *sock, void __user * arg);
@@ -129,6 +134,7 @@ int do_page_table_walk(struct socket *sock, void __user * arg);
 int do_copy_process(struct socket *sock, void __user * arg);
 int do_read_physical_memory(struct socket *sock, void __user * arg);
 int do_get_module_base(struct socket *sock, void __user * arg);
+int do_find_process(struct socket *sock, void __user * arg);
 
 typedef int (*ioctl_handler_t)(struct socket *sock, void __user * arg);
 
@@ -146,6 +152,7 @@ static const struct ioctl_cmd_map {
     { .cmd = WUWA_IOCTL_COPY_PROCESS, .handler = do_copy_process },
     { .cmd = WUWA_IOCTL_READ_MEMORY, .handler = do_read_physical_memory },
     { .cmd = WUWA_IOCTL_GET_MODULE_BASE, .handler = do_get_module_base },
+    { .cmd = WUWA_IOCTL_FIND_PROCESS, .handler = do_find_process },
     { .cmd = 0, .handler = NULL } /* Sentinel to mark end of array */
 };
 

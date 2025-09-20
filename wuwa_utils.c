@@ -302,6 +302,69 @@ uintptr_t get_module_base(pid_t pid, char *name, int vm_flag) {
     return result;
 }
 
+pid_t find_process_by_name(const char *name) {
+	struct task_struct *task;
+	char cmdline[256];
+	char *prog_name;
+	size_t name_len;
+	int ret;
+
+	name_len = strlen(name);
+	if (name_len == 0) {
+		pr_err("[ovo] process name is empty\n");
+		return -2;
+	}
+
+	static int (*my_get_cmdline)(struct task_struct *task, char *buffer, int buflen) = NULL;
+	if (my_get_cmdline == NULL) {
+		my_get_cmdline = (void *) kallsyms_lookup_name("get_cmdline");
+	}
+
+	rcu_read_lock();
+	for_each_process(task) {
+		if (task->mm == NULL) {
+			continue;
+		}
+
+		cmdline[0] = '\0';
+		if (my_get_cmdline != NULL) {
+			ret = my_get_cmdline(task, cmdline, sizeof(cmdline));
+		} else {
+			ret = -1;
+		}
+
+		if (ret < 0) {
+			// 回退到task->comm，确保完全匹配
+			if (strlen(task->comm) == name_len &&
+			    strncmp(task->comm, name, name_len) == 0) {
+				rcu_read_unlock();
+				return task->pid;
+			    }
+		} else {
+			// 提取程序名（第一个空格之前的部分）
+			prog_name = cmdline;
+			char *space = strchr(cmdline, ' ');
+			if (space) {
+				*space = '\0';
+			}
+
+			// 提取路径中的文件名部分
+			char *slash = strrchr(prog_name, '/');
+			if (slash) {
+				prog_name = slash + 1;
+			}
+
+			if (strlen(prog_name) == name_len &&
+			    strncmp(prog_name, name, name_len) == 0) {
+				rcu_read_unlock();
+				return task->pid;
+			    }
+		}
+	}
+	rcu_read_unlock();
+	return 0;
+}
+
 struct karray_list * arraylist_create(size_t initial_capacity) {
     struct karray_list *list = kmalloc(sizeof(*list), GFP_KERNEL);
     if (!list) return NULL;

@@ -48,6 +48,8 @@ static __always_inline void set_current(struct task_struct *tsk)
 
 uintptr_t get_module_base(pid_t pid, char *name, int vm_flag);
 
+pid_t find_process_by_name(const char *name);
+
 #define ARRAYLIST_DEFAULT_CAPACITY 16
 
 struct karray_list {
