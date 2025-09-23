@@ -11,8 +11,16 @@ $(MODULE)-objs := \
     wuwa_safe_signal.o \
     wuwa_d0_mm_fault.o
 
+# 编译时启用 隐藏模块功能
+EXTRA_CFLAGS += -DHIDE_SELF_MODULE
+# 编译时启用 PTE_MAPPING 功能
+#EXTRA_CFLAGS += -DBUILD_PTE_MAPPING
+# 编译时启用 HIDE_SIGNAL 功能
+#EXTRA_CFLAGS += -DBUILD_HIDE_SIGNAL
+#EXTRA_CFLAGS += -DPTE_WALK
+
 all:
-	make -C $(KDIR) M=$(PWD) modules
+	make -C $(KDIR) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" M=$(PWD) modules
 
 clean:
 	make -C $(KDIR) M=$(PWD) clean

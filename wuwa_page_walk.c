@@ -24,6 +24,7 @@ static void print_merged_region(unsigned long *start, unsigned long *end) {
 // Walk the Page Table Entries (PTEs)
 static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
                           unsigned long *region_start, unsigned long *region_end) {
+#if defined(PTE_WALK)
     pte_t *ptep, pte;
     unsigned long current_addr;
     unsigned long pte_end;
@@ -32,8 +33,7 @@ static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
     if (end < pte_end)
         pte_end = end;
 
-    // todo 6.6.66内核该符号找不到
-    //ptep = pte _offset_map(pmd, addr);
+    ptep = pte_offset_map(pmd, addr);
     ptep = NULL;
     if (!ptep) {
         return;
@@ -59,6 +59,9 @@ static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
     }
 
     pte_unmap(ptep - ((pte_end - addr) >> PAGE_SHIFT));
+#else
+    wuwa_err("PTE walk not supported on this architecture.\n");
+#endif
 }
 
 // Walk the Page Middle Directories (PMDs)

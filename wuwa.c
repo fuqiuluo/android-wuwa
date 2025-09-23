@@ -33,26 +33,30 @@ static int __init wuwa_init(void) {
         goto out;
     }
 
-    // 不需要这些东西
-    // ret = wuwa_safe_signal_init();
-    // if (ret) {
-    //     wuwa_err("wuwa_safe_signal_init failed: %d\n", ret);
-    //     goto clean_sig;
-    // }
-    //
-    // ret = init_d0_mm_fault();
-    // if (ret) {
-    //     wuwa_err("init_d0_mm_fault failed: %d\n", ret);
-    //     goto clean_d0;
-    // }
+#if defined(BUILD_HIDE_SIGNAL)
+    ret = wuwa_safe_signal_init();
+    if (ret) {
+        wuwa_err("wuwa_safe_signal_init failed: %d\n", ret);
+        goto clean_sig;
+    }
+
+    ret = init_d0_mm_fault();
+    if (ret) {
+        wuwa_err("init_d0_mm_fault failed: %d\n", ret);
+        goto clean_d0;
+    }
+#endif
 
     return 0;
 
-    // clean_d0:
-    // wuwa_safe_signal_cleanup();
-    //
-    // clean_sig:
-    // wuwa_proto_cleanup();
+#if defined(BUILD_HIDE_SIGNAL)
+    clean_d0:
+    wuwa_safe_signal_cleanup();
+
+    clean_sig:
+    wuwa_proto_cleanup();
+#endif
+
 
     out:
     return ret;
@@ -61,8 +65,10 @@ static int __init wuwa_init(void) {
 static void __exit wuwa_exit(void) {
     wuwa_info("bye!\n");
     wuwa_proto_cleanup();
-    // wuwa_safe_signal_cleanup();
-    // cleanup_d0_mm_fault();
+#if defined(BUILD_HIDE_SIGNAL)
+    wuwa_safe_signal_cleanup();
+    cleanup_d0_mm_fault();
+#endif
 }
 
 module_init(wuwa_init);
