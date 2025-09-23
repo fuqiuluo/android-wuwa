@@ -9,12 +9,14 @@ Join Group: 943577597
 - [x] Page-table injections that bypass VMA
 - [x] Dump a process’s memory map straight to dmesg for easy inspection
 - [ ] Low-level page-table permission tweaks plus VMA permission masking 
-- [ ] Arbitrary physical memory read/write 
+- [x] Arbitrary physical memory read/write 
 - [ ] Memory-scan traps for stealthy injection protection 
 - [ ] Cross-process memory remap to build shared memory
 - [ ] EL1 channel based on exception vectors
 - [x] Kprobe blacklist bypass/disable
-- [x] `read`/`write` memory of other processes
+- [x] Determine if the process is alive
+- [x] Get Module Base Addr
+- [x] Get process PID
 
 # Heads-up
 
