@@ -1,0 +1,58 @@
+name: DDK Build Kernel Module
+
+on:
+  workflow_call:
+    inputs:
+      kmi:
+        description: 'KMI version'
+        required: true
+        type: string
+      ddk_release:
+        description: 'DDK release version'
+        required: false
+        default: '20250825'
+        type: string
+      module_name:
+        description: 'Kernel module name (without .ko extension)'
+        required: false
+        default: 'android-wuwa'
+        type: string
+
+jobs:
+  build-module:
+    name: Build ${{ inputs.module_name }}.ko for ${{ inputs.kmi }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ylarod/ddk-dev:${{ inputs.kmi }}-${{ inputs.ddk_release }}
+      options: --privileged
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Build ${{ inputs.module_name }}.ko
+      run: |
+        echo "=== Building ${{ inputs.module_name }}.ko for KMI: ${{ inputs.kmi }} ==="
+
+        make KDIR=$KERNEL_SRC
+        
+        echo "=== Build completed ==="
+
+        # Create output directory in GitHub workspace
+        mkdir -p /github/workspace/out
+        
+        # Copy with KMI-specific naming
+        OUTPUT_NAME="${{ inputs.module_name }}-${{ inputs.kmi }}.ko"
+        cp "${{ inputs.module_name }}.ko" "/github/workspace/out/$OUTPUT_NAME"
+
+        echo "Copied to: /github/workspace/out/$OUTPUT_NAME"
+        ls -la "/github/workspace/out/$OUTPUT_NAME"
+        echo "Size: $(du -h "/github/workspace/out/$OUTPUT_NAME" | cut -f1)"
+        llvm-strip -d "/github/workspace/out/$OUTPUT_NAME"
+        echo "Size after stripping: $(du -h "/github/workspace/out/$OUTPUT_NAME" | cut -f1)"
+
+    - name: Upload ${{ inputs.module_name }}.ko artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.module_name }}-${{ inputs.kmi }}.ko
+        path: /github/workspace/out/${{ inputs.module_name }}-${{ inputs.kmi }}.ko

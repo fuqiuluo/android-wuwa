@@ -1,0 +1,27 @@
+name: Build android-wuwa kernel modules
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build-modules:
+    name: Build android-wuwa.ko for ${{ matrix.kmi }}
+    uses: ./.github/workflows/ddk-lkm.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        kmi:
+          - android12-5.10
+          - android13-5.10
+          - android13-5.15
+          - android14-5.15
+          - android14-6.1
+          - android15-6.6
+          - android16-6.12
+    with:
+      kmi: ${{ matrix.kmi }}
+      ddk_release: '20250825'
+      module_name: 'android-wuwa'
