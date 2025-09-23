@@ -1,6 +1,7 @@
 /.idea
 compile_commands.json
 lkm-devtools.toml
+/android-kernel
 /build
 lkm-devtools
 wuwa_cproc.c

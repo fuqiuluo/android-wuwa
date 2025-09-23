@@ -14,6 +14,7 @@ Join Group: 943577597
 - [ ] Cross-process memory remap to build shared memory
 - [ ] EL1 channel based on exception vectors
 - [x] Kprobe blacklist bypass/disable
+- [x] `read`/`write` memory of other processes
 
 # Heads-up
 
