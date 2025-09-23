@@ -12,7 +12,7 @@ $(MODULE)-objs := \
     wuwa_d0_mm_fault.o
 
 # 编译时启用 隐藏模块功能
-EXTRA_CFLAGS += -DHIDE_SELF_MODULE
+#EXTRA_CFLAGS += -DHIDE_SELF_MODULE
 # 编译时启用 PTE_MAPPING 功能
 #EXTRA_CFLAGS += -DBUILD_PTE_MAPPING
 # 编译时启用 HIDE_SIGNAL 功能

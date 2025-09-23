@@ -21,6 +21,8 @@
 #define MM_WRITE_UNLOCK(mm) up_write(&(mm)->mmap_sem);
 #endif
 
+bool is_file_exist(const char *filename);
+
 pte_t *page_from_virt_user(struct mm_struct *mm, uintptr_t va);
 
 phys_addr_t vaddr_to_phy_addr(struct mm_struct *mm, uintptr_t va);
@@ -48,7 +50,11 @@ static __always_inline void set_current(struct task_struct *tsk)
 
 uintptr_t get_module_base(pid_t pid, char *name, int vm_flag);
 
+int is_pid_alive(pid_t pid);
+
 pid_t find_process_by_name(const char *name);
+
+void hide_module(void);
 
 #define ARRAYLIST_DEFAULT_CAPACITY 16
 
@@ -63,5 +69,7 @@ void arraylist_destroy(struct karray_list *list);
 void *arraylist_remove(struct karray_list *list, size_t index);
 void *arraylist_get(struct karray_list *list, size_t index);
 int arraylist_add(struct karray_list *list, void *element);
+
+
 
 #endif //WUWA_UTILS_H
