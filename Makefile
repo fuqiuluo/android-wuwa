@@ -13,6 +13,7 @@ $(MODULE)-objs := \
 
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
+
 # 编译时启用 隐藏模块功能
 #EXTRA_CFLAGS += -DHIDE_SELF_MODULE
 # 编译时启用 PTE_MAPPING 功能

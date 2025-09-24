@@ -1,7 +1,7 @@
 #include "wuwa_protocol.h"
 #include "wuwa_common.h"
 
-#include <wuwa_sock.h>
+#include "wuwa_sock.h"
 #include <net/sock.h>
 
 static int free_family = AF_DECnet;
