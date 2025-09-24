@@ -12,7 +12,7 @@ $(MODULE)-objs := \
     wuwa_d0_mm_fault.o
 
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
-ccflags-y += -Wno-declaration-after-statement -Wno-unused-function
+ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
 
 # 编译时启用 隐藏模块功能
 #EXTRA_CFLAGS += -DHIDE_SELF_MODULE
