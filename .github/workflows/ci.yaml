@@ -20,7 +20,6 @@ jobs:
           - android14-5.15
           - android14-6.1
           - android15-6.6
-          - android16-6.12
     with:
       kmi: ${{ matrix.kmi }}
       ddk_release: '20250825'
