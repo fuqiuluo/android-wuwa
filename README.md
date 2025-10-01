@@ -19,7 +19,8 @@ Join Group: 943577597
 - [x] Determine if the process is alive
 - [x] Get Module Base Addr
 - [x] Get process PID
-- [x] Hide Process
+- [ ] Hide Process
+- [x] Give Root
 
 # How to Connect to the WuWa Driver
 
