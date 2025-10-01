@@ -20,6 +20,10 @@ Join Group: 943577597
 - [x] Get Module Base Addr
 - [x] Get process PID
 
+# # How to Connect to the WuWa Driver
+
+[Click me](docs/FindDriver.md) for the connection guide.
+
 # Heads-up
 
 - Tested only on my device running kernel 6.1.
