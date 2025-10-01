@@ -1,7 +1,7 @@
 #include "wuwa_d0_mm_fault.h"
 
-#include <linux/stddef.h>
 #include <linux/kprobes.h>
+#include <linux/stddef.h>
 #include <linux/vmalloc.h>
 
 #include "wuwa_common.h"
@@ -10,21 +10,19 @@
 struct fault_probe_data {
     unsigned long far;
     unsigned long esr;
-    struct pt_regs *regs;
+    struct pt_regs* regs;
 
     struct pt_regs old_regs;
     unsigned long thread_flags;
 };
 
 // void do_mem_abort(unsigned long far, unsigned long esr, struct pt_regs *regs)
-static int do_mem_abort_entry(struct kretprobe_instance *ri,
-                              struct pt_regs *regs)
-{
+static int do_mem_abort_entry(struct kretprobe_instance* ri, struct pt_regs* regs) {
 #if CONFIG_REDIRECT_VIA_ABORT == 1
-    struct fault_probe_data *d = (struct fault_probe_data *)ri->data;
+    struct fault_probe_data* d = (struct fault_probe_data*)ri->data;
     unsigned long far;
     unsigned long esr;
-    struct pt_regs *user_regs;
+    struct pt_regs* user_regs;
 
     far = regs->regs[0];
     esr = regs->regs[1];
@@ -41,24 +39,21 @@ static int do_mem_abort_entry(struct kretprobe_instance *ri,
     return 0;
 }
 
-static int do_mem_abort_ret(struct kretprobe_instance *ri,
-                            struct pt_regs *regs)
-{
+static int do_mem_abort_ret(struct kretprobe_instance* ri, struct pt_regs* regs) {
 #if CONFIG_REDIRECT_VIA_ABORT == 1
-    struct fault_probe_data *d = (struct fault_probe_data *)ri->data;
+    struct fault_probe_data* d = (struct fault_probe_data*)ri->data;
     unsigned long far = d->far;
     unsigned long esr = d->esr;
-    struct pt_regs *user_regs = d->regs;
+    struct pt_regs* user_regs = d->regs;
 
     if (far == LUCKY_LUO) {
         ovo_info("Lucky memory access at 0x%lx, esr=0x%lx\n", far, esr);
-        ovo_info("pc=0x%llx, sp=0x%llx, fp=0x%llx\n",
-                 user_regs->pc, user_regs->sp, user_regs->regs[29]);
+        ovo_info("pc=0x%llx, sp=0x%llx, fp=0x%llx\n", user_regs->pc, user_regs->sp, user_regs->regs[29]);
 
         memcpy(user_regs, &d->old_regs, sizeof(*user_regs));
 
         u64 magic[2];
-        u64 __user *sp = (typeof(sp))user_regs->sp;
+        u64 __user* sp = (typeof(sp))user_regs->sp;
         if (copy_from_user(&magic, sp, sizeof(magic)) == 0) {
             ovo_info("Magic values: 0x%llx, 0x%llx\n", magic[0], magic[1]);
         }
@@ -77,7 +72,7 @@ static int do_mem_abort_ret(struct kretprobe_instance *ri,
 
         user_regs->pc = magic[1];
 
-        struct task_struct *tsk = current;
+        struct task_struct* tsk = current;
 
         spin_lock_irq(&tsk->sighand->siglock);
 
@@ -98,19 +93,16 @@ static int do_mem_abort_ret(struct kretprobe_instance *ri,
 }
 
 // void arm64_force_sig_fault(int signo, int code, unsigned long far,const char *str)
-static int arm64_force_sig_fault_pre(struct kprobe *p, struct pt_regs *regs) {
-    return 0;
-}
+static int arm64_force_sig_fault_pre(struct kprobe* p, struct pt_regs* regs) { return 0; }
 
-static void arm64_force_sig_fault_post(struct kprobe *p, struct pt_regs *regs, unsigned long flags) {
-}
+static void arm64_force_sig_fault_post(struct kprobe* p, struct pt_regs* regs, unsigned long flags) {}
 
 static struct kretprobe krp_do_mem_abort = {
     .kp.symbol_name = "do_mem_abort",
-    .handler       = do_mem_abort_ret,
+    .handler = do_mem_abort_ret,
     .entry_handler = do_mem_abort_entry,
-    .data_size     = sizeof(struct fault_probe_data),
-    .maxactive     = 20,
+    .data_size = sizeof(struct fault_probe_data),
+    .maxactive = 20,
 };
 
 static struct kprobe kp_arm64_force_sig_fault = {
@@ -144,7 +136,7 @@ int init_d0_mm_fault(void) {
 
     return 0;
 
-    out:
+out:
     return ret;
 }
 

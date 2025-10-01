@@ -1,11 +1,11 @@
 #include "wuwa_safe_signal.h"
-#include "wuwa_common.h"
-#include <linux/stddef.h>
-#include <linux/signal_types.h>
-#include <linux/ptrace.h>
-#include <linux/kprobes.h>
-#include <linux/vmalloc.h>
 #include <asm/ucontext.h>
+#include <linux/kprobes.h>
+#include <linux/ptrace.h>
+#include <linux/signal_types.h>
+#include <linux/stddef.h>
+#include <linux/vmalloc.h>
+#include "wuwa_common.h"
 #include "wuwa_utils.h"
 
 struct unsafe_region_area {
@@ -18,7 +18,7 @@ struct unsafe_region_area {
 static struct karray_list* unsafe_region_areas = NULL;
 static DEFINE_RWLOCK(unsafe_region_areas_lock);
 
-static bool is_safe_prof_signal(struct ksignal *ksig, struct pt_regs *regs) {
+static bool is_safe_prof_signal(struct ksignal* ksig, struct pt_regs* regs) {
     u64 lr = regs->regs[30];
     u64 pc = regs->pc;
 
@@ -30,7 +30,7 @@ static bool is_safe_prof_signal(struct ksignal *ksig, struct pt_regs *regs) {
     read_lock(&unsafe_region_areas_lock);
 
     for (int i = 0; i < unsafe_region_areas->size; ++i) {
-        struct unsafe_region_area *area = unsafe_region_areas->data[i];
+        struct unsafe_region_area* area = unsafe_region_areas->data[i];
         if (!area) {
             continue;
         }
@@ -62,9 +62,9 @@ static bool is_safe_prof_signal(struct ksignal *ksig, struct pt_regs *regs) {
 struct setup_rt_frame_data {
     int unsafe;
     int usig;
-    struct ksignal *ksig;
-    sigset_t *set;
-    struct pt_regs *regs;
+    struct ksignal* ksig;
+    sigset_t* set;
+    struct pt_regs* regs;
     struct pt_regs old_regs;
 };
 
@@ -82,16 +82,13 @@ struct user_access_state {
 
 // static int setup_rt_frame(int usig, struct ksignal *ksig, sigset_t *set, struct pt_regs *regs)
 // kernel 6.1 static int setup_rt_frame(int usig, struct ksignal *ksig, sigset_t *set, struct pt_regs *regs)
-static int setup_rt_frame_entry(struct kretprobe_instance *ri,
-                                struct pt_regs *regs)
-{
-    int usig                 = (int) regs->regs[0];
-    struct ksignal *ksig     = (struct ksignal *) regs->regs[1];
-    sigset_t *set            = (sigset_t *) regs->regs[2];
-    struct pt_regs *user_regs = (struct pt_regs *) regs->regs[3];
+static int setup_rt_frame_entry(struct kretprobe_instance* ri, struct pt_regs* regs) {
+    int usig = (int)regs->regs[0];
+    struct ksignal* ksig = (struct ksignal*)regs->regs[1];
+    sigset_t* set = (sigset_t*)regs->regs[2];
+    struct pt_regs* user_regs = (struct pt_regs*)regs->regs[3];
 
-    struct setup_rt_frame_data *d =
-        (struct setup_rt_frame_data *)ri->data;
+    struct setup_rt_frame_data* d = (struct setup_rt_frame_data*)ri->data;
     d->unsafe = 0;
     d->usig = usig;
     d->ksig = ksig;
@@ -117,18 +114,20 @@ static int setup_rt_frame_entry(struct kretprobe_instance *ri,
 #if CONFIG_REDIRECT_VIA_SIGNAL != 0
     if (usig == SIGSEGV && (u64)ksig->info.si_addr == LUCKY_LUO) {
         wuwa_info("==> setup_rt_frame_entry: Lucky SIGSEGV caught, pid=%d\n", current->pid);
-        wuwa_info("    x0=0x%llx, x1=0x%llx, x2=0x%llx, x3=0x%llx\n",
-                  user_regs->regs[0], user_regs->regs[1],
+        wuwa_info("    x0=0x%llx, x1=0x%llx, x2=0x%llx, x3=0x%llx\n", user_regs->regs[0], user_regs->regs[1],
                   user_regs->regs[2], user_regs->regs[3]);
-        wuwa_info("    pc=0x%llx, lr=0x%llx, sp=0x%llx, fp=0x%llx\n", user_regs->pc, user_regs->regs[30], user_regs->sp, user_regs->regs[29]);
+        wuwa_info("    pc=0x%llx, lr=0x%llx, sp=0x%llx, fp=0x%llx\n", user_regs->pc, user_regs->regs[30], user_regs->sp,
+                  user_regs->regs[29]);
 
         // static void(*fpsimd_signal_save_current_state)(void) = NULL;
         // if (!fpsimd_signal_save_current_state) {
-        //     fpsimd_signal_save_current_state = (void(*)(void))kallsyms_lookup_name("fpsimd_signal_preserve_current_state");
+        //     fpsimd_signal_save_current_state =
+        //     (void(*)(void))kallsyms_lookup_name("fpsimd_signal_preserve_current_state");
         //     ovo_info("fpsimd_signal_preserve_current_state found at %p\n", fpsimd_signal_save_current_state);
         // }
         // if (!fpsimd_signal_save_current_state) {
-        //     fpsimd_signal_save_current_state = (void(*)(void))kallsyms_lookup_name("fpsimd_save_and_flush_current_state");
+        //     fpsimd_signal_save_current_state =
+        //     (void(*)(void))kallsyms_lookup_name("fpsimd_save_and_flush_current_state");
         //     ovo_info("fpsimd_save_and_flush_current_state found at %p\n", fpsimd_signal_save_current_state);
         // }
         // if (fpsimd_signal_save_current_state) {
@@ -145,17 +144,15 @@ static int setup_rt_frame_entry(struct kretprobe_instance *ri,
     return 0;
 }
 
-static int setup_rt_frame_ret(struct kretprobe_instance *ri,
-                              struct pt_regs *regs)
-{
-    struct setup_rt_frame_data *d =
-        (struct setup_rt_frame_data *)ri->data;
-    if (unlikely(!d)) return 0;
+static int setup_rt_frame_ret(struct kretprobe_instance* ri, struct pt_regs* regs) {
+    struct setup_rt_frame_data* d = (struct setup_rt_frame_data*)ri->data;
+    if (unlikely(!d))
+        return 0;
 
-    int usig              = d->usig;
-    struct ksignal *ksig  = d->ksig;
-    sigset_t *set         = d->set;
-    struct pt_regs *user_regs = d->regs;
+    int usig = d->usig;
+    struct ksignal* ksig = d->ksig;
+    sigset_t* set = d->set;
+    struct pt_regs* user_regs = d->regs;
 
     if (d->unsafe) {
         wuwa_warn("Unsafe SIGPROF detected, usig=%d\n", usig);
@@ -167,7 +164,7 @@ static int setup_rt_frame_ret(struct kretprobe_instance *ri,
 
 #if CONFIG_REDIRECT_VIA_SIGNAL != 0
     if (usig == SIGSEGV && (u64)ksig->info.si_addr == LUCKY_LUO) {
-        if (ksig->ka.sa.sa_handler != (void __user *)LUCKY_LUO) {
+        if (ksig->ka.sa.sa_handler != (void __user*)LUCKY_LUO) {
             wuwa_warn("setup_rt_frame_ret: Lucky SIGSEGV caught, but handler is not set to LUCKY_LUO\n");
         }
 
@@ -180,11 +177,12 @@ static int setup_rt_frame_ret(struct kretprobe_instance *ri,
         u64 pc_handler = user_regs->pc;
 
         wuwa_info("setup_rt_frame_ret: Lucky SIGSEGV caught!\n");
-        wuwa_info("setup_rt_frame_ret: usig=%d, handler_info=0x%llx, hanlder_uc=0x%llx, sp=0x%llx, fp=0x%llx, lr_sigtramp=0x%llx, pc_handler=0x%llx\n",
+        wuwa_info("setup_rt_frame_ret: usig=%d, handler_info=0x%llx, hanlder_uc=0x%llx, sp=0x%llx, fp=0x%llx, "
+                  "lr_sigtramp=0x%llx, pc_handler=0x%llx\n",
                   handler_usig, handler_info, hanlder_uc, sp, fp, lr_sigtramp, pc_handler);
 
         struct k_sigaction* ka;
-        ka = &current->sighand->action[usig-1];
+        ka = &current->sighand->action[usig - 1];
         if (ka->sa.sa_handler == SIG_IGN || ka->sa.sa_handler == SIG_DFL) {
             ka->sa.sa_handler = (__sighandler_t)LUCKY_LUO;
         }
@@ -215,7 +213,7 @@ static int setup_rt_frame_ret(struct kretprobe_instance *ri,
         user_regs->pstate &= ~PSR_TCO_BIT;
 
         u64 magic[2];
-        u64 __user *magic_sp = (typeof(magic_sp))user_regs->sp;
+        u64 __user* magic_sp = (typeof(magic_sp))user_regs->sp;
         if (copy_from_user(&magic, magic_sp, sizeof(magic)) == 0) {
             ovo_info("Magic values: 0x%llx, 0x%llx\n", magic[0], magic[1]);
         }
@@ -250,13 +248,13 @@ static int setup_rt_frame_ret(struct kretprobe_instance *ri,
         //
         // spin_unlock_irq(&current->sighand->siglock);
 
-        static int (*valid_user_regs)(struct user_pt_regs *regs, struct task_struct *task) = NULL;
+        static int (*valid_user_regs)(struct user_pt_regs* regs, struct task_struct* task) = NULL;
         if (valid_user_regs == NULL) {
             valid_user_regs = (typeof(valid_user_regs))kallsyms_lookup_name("valid_user_regs");
         }
 
-        ovo_info("Lucky SIGSEGV setup complete, pc=0x%llx, lr=0x%llx, invalid: %d\n",
-                  user_regs->pc, user_regs->regs[30], !valid_user_regs(&user_regs->user_regs, current));
+        ovo_info("Lucky SIGSEGV setup complete, pc=0x%llx, lr=0x%llx, invalid: %d\n", user_regs->pc,
+                 user_regs->regs[30], !valid_user_regs(&user_regs->user_regs, current));
 
         regs_set_return_value(regs, 0);
     }
@@ -267,17 +265,15 @@ static int setup_rt_frame_ret(struct kretprobe_instance *ri,
 
 
 struct rp_data_get_signal {
-    struct ksignal *ksig_ptr;        /* get_signal()'s first argument */
+    struct ksignal* ksig_ptr; /* get_signal()'s first argument */
 };
 
 // bool get_signal(struct ksignal *ksig)
-static int get_signal_entry_handler(struct kretprobe_instance *ri,
-                    struct pt_regs *regs)
-{
-    struct rp_data_get_signal *data = (struct rp_data_get_signal *)ri->data;
-    struct ksignal *ksig;
+static int get_signal_entry_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
+    struct rp_data_get_signal* data = (struct rp_data_get_signal*)ri->data;
+    struct ksignal* ksig;
 
-    ksig = (struct ksignal *)regs->regs[0];
+    ksig = (struct ksignal*)regs->regs[0];
     data->ksig_ptr = ksig;
 
     // if (ksig->sig != SIGSEGV)
@@ -295,26 +291,24 @@ static int get_signal_entry_handler(struct kretprobe_instance *ri,
     return 0;
 }
 
-static int get_signal_ret_handler(struct kretprobe_instance *ri,
-                  struct pt_regs *regs)
-{
-    struct rp_data_get_signal *data;
-    struct ksignal *ksig;
+static int get_signal_ret_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
+    struct rp_data_get_signal* data;
+    struct ksignal* ksig;
     unsigned long retval;
 
     if (!ri || !regs)
         return 0;
 
-    data = (struct rp_data_get_signal *)ri->data;
+    data = (struct rp_data_get_signal*)ri->data;
     if (unlikely(!data || !data->ksig_ptr))
         return 0;
 
-    ksig   = data->ksig_ptr;
+    ksig = data->ksig_ptr;
     retval = regs_return_value(regs);
 
 #if CONFIG_REDIRECT_VIA_SIGNAL != 0
-    if (ksig->info.si_signo == SIGSEGV && ksig->info.si_addr == (void *)LUCKY_LUO) {
-        ksig->ka.sa.sa_handler = (void __user *)LUCKY_LUO;
+    if (ksig->info.si_signo == SIGSEGV && ksig->info.si_addr == (void*)LUCKY_LUO) {
+        ksig->ka.sa.sa_handler = (void __user*)LUCKY_LUO;
         wuwa_info("====> get_signal_ret_handler: Lucky SIGSEGV caught, setting handler to LUCKY_LUO\n");
 
         if (!(ksig->ka.sa.sa_flags & SA_SIGINFO)) {
@@ -332,18 +326,18 @@ static int get_signal_ret_handler(struct kretprobe_instance *ri,
 
 static struct kretprobe krp_setup_rt_frame = {
     .kp.symbol_name = "setup_rt_frame",
-    .entry_handler  = setup_rt_frame_entry,
-    .handler        = setup_rt_frame_ret,
-    .data_size      = sizeof(struct setup_rt_frame_data),
-    .maxactive      = 20,
+    .entry_handler = setup_rt_frame_entry,
+    .handler = setup_rt_frame_ret,
+    .data_size = sizeof(struct setup_rt_frame_data),
+    .maxactive = 20,
 };
 
 static struct kretprobe krpget_signal = {
-    .kp.symbol_name		= "get_signal",
-    .entry_handler		= get_signal_entry_handler,
-    .handler		= get_signal_ret_handler,
-    .data_size		= sizeof(struct rp_data_get_signal),
-    .maxactive		= 20,
+    .kp.symbol_name = "get_signal",
+    .entry_handler = get_signal_entry_handler,
+    .handler = get_signal_ret_handler,
+    .data_size = sizeof(struct rp_data_get_signal),
+    .maxactive = 20,
 };
 
 int wuwa_safe_signal_init(void) {
@@ -378,9 +372,9 @@ int wuwa_safe_signal_init(void) {
 
     return 0;
 
-    out_krpget_signal:
+out_krpget_signal:
     unregister_kretprobe(&krpget_signal);
-    out:
+out:
     unregister_kretprobe(&krp_setup_rt_frame);
     return ret;
 }
@@ -403,7 +397,7 @@ void wuwa_safe_signal_cleanup(void) {
                 kvfree(element);
         }
 
-        next:
+    next:
         arraylist_destroy(unsafe_region_areas);
         unsafe_region_areas = NULL;
     }
@@ -418,7 +412,7 @@ int wuwa_add_unsafe_region(pid_t session, uid_t uid, uintptr_t start, size_t num
         return -ENOMEM;
     }
 
-    struct unsafe_region_area *area = kvzalloc(sizeof(*area), GFP_KERNEL);
+    struct unsafe_region_area* area = kvzalloc(sizeof(*area), GFP_KERNEL);
     if (!area) {
         wuwa_err("failed to allocate memory for unsafe region area\n");
         write_unlock(&unsafe_region_areas_lock);
@@ -455,9 +449,9 @@ int wuwa_del_unsafe_region(pid_t pid) {
     }
 
     for (int i = 0; i < unsafe_region_areas->size; ++i) {
-        struct unsafe_region_area *area = unsafe_region_areas->data[i];
+        struct unsafe_region_area* area = unsafe_region_areas->data[i];
         if (area && area->session_pid == pid) {
-            void *removed = arraylist_remove(unsafe_region_areas, i);
+            void* removed = arraylist_remove(unsafe_region_areas, i);
             if (removed) {
                 kvfree(removed);
             } else {

@@ -9,7 +9,8 @@ $(MODULE)-objs := \
     wuwa_ioctl.o \
     wuwa_page_walk.o \
     wuwa_safe_signal.o \
-    wuwa_d0_mm_fault.o
+    wuwa_d0_mm_fault.o \
+    wuwa_proc.o
 
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable

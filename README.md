@@ -19,8 +19,9 @@ Join Group: 943577597
 - [x] Determine if the process is alive
 - [x] Get Module Base Addr
 - [x] Get process PID
+- [x] Hide Process
 
-# # How to Connect to the WuWa Driver
+# How to Connect to the WuWa Driver
 
 [Click me](docs/FindDriver.md) for the connection guide.
 
@@ -29,3 +30,7 @@ Join Group: 943577597
 - Tested only on my device running kernel 6.1.
 - No guarantees on other versions; treat this as a proof of concept.
 - Everything not explicitly marked “planned” has been run and verified on my setup—use at your own risk.
+
+# Thanks
+
+- [Diamorphine](https://github.com/m0nad/Diamorphine)

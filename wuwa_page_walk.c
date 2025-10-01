@@ -1,18 +1,18 @@
 #include "wuwa_page_walk.h"
-#include "wuwa_common.h"
-#include <linux/sched/signal.h>
-#include <linux/sched/mm.h>
-#include <linux/mm.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-#include <linux/uaccess.h>
 #include <asm/pgtable.h>
 #include <linux/hugetlb.h>
+#include <linux/mm.h>
+#include <linux/proc_fs.h>
+#include <linux/sched/mm.h>
+#include <linux/sched/signal.h>
+#include <linux/seq_file.h>
+#include <linux/uaccess.h>
+#include "wuwa_common.h"
 
 #include "wuwa_utils.h"
 
 // Function to merge and print contiguous memory regions
-static void print_merged_region(unsigned long *start, unsigned long *end) {
+static void print_merged_region(unsigned long* start, unsigned long* end) {
     if (*start != -1UL) {
         // [start, end) is the format used by /proc/pid/maps
         wuwa_info("Found region: 0x%lx - 0x%lx\n", *start, *end + 1);
@@ -22,8 +22,8 @@ static void print_merged_region(unsigned long *start, unsigned long *end) {
 }
 
 // Walk the Page Table Entries (PTEs)
-static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
-                          unsigned long *region_start, unsigned long *region_end) {
+static void walk_pte_level(pmd_t* pmd, unsigned long addr, unsigned long end, unsigned long* region_start,
+                           unsigned long* region_end) {
 #if defined(PTE_WALK)
     pte_t *ptep, pte;
     unsigned long current_addr;
@@ -65,9 +65,9 @@ static void walk_pte_level(pmd_t *pmd, unsigned long addr, unsigned long end,
 }
 
 // Walk the Page Middle Directories (PMDs)
-static void walk_pmd_level(pud_t *pud, unsigned long addr, unsigned long end,
-                          unsigned long *region_start, unsigned long *region_end) {
-    pmd_t *pmd;
+static void walk_pmd_level(pud_t* pud, unsigned long addr, unsigned long end, unsigned long* region_start,
+                           unsigned long* region_end) {
+    pmd_t* pmd;
     unsigned long next;
 
     pmd = pmd_offset(pud, addr);
@@ -95,9 +95,9 @@ static void walk_pmd_level(pud_t *pud, unsigned long addr, unsigned long end,
 }
 
 // Walk the Page Upper Directories (PUDs)
-static void walk_pud_level(p4d_t *p4d, unsigned long addr, unsigned long end,
-                          unsigned long *region_start, unsigned long *region_end) {
-    pud_t *pud;
+static void walk_pud_level(p4d_t* p4d, unsigned long addr, unsigned long end, unsigned long* region_start,
+                           unsigned long* region_end) {
+    pud_t* pud;
     unsigned long next;
 
     pud = pud_offset(p4d, addr);
@@ -125,9 +125,9 @@ static void walk_pud_level(p4d_t *p4d, unsigned long addr, unsigned long end,
 }
 
 // Walk the Page 4th-level Directories (P4Ds)
-static void walk_p4d_level(pgd_t *pgd, unsigned long addr, unsigned long end,
-                          unsigned long *region_start, unsigned long *region_end) {
-    p4d_t *p4d;
+static void walk_p4d_level(pgd_t* pgd, unsigned long addr, unsigned long end, unsigned long* region_start,
+                           unsigned long* region_end) {
+    p4d_t* p4d;
     unsigned long next;
 
     p4d = p4d_offset(pgd, addr);
@@ -144,10 +144,10 @@ static void walk_p4d_level(pgd_t *pgd, unsigned long addr, unsigned long end,
     } while (addr < end);
 }
 
-void traverse_page_tables(struct mm_struct *mm) {
+void traverse_page_tables(struct mm_struct* mm) {
     unsigned long addr = 0;
     unsigned long region_start = -1UL, region_end = -1UL;
-    pgd_t *pgd;
+    pgd_t* pgd;
     unsigned long next;
 
     if (!mm) {

@@ -3,6 +3,6 @@
 
 #include <linux/mm_types.h>
 
-void traverse_page_tables(struct mm_struct *mm);
+void traverse_page_tables(struct mm_struct* mm);
 
-#endif //WUWA_PAGE_WALK_H
+#endif // WUWA_PAGE_WALK_H
