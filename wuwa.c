@@ -21,11 +21,13 @@ static int __init wuwa_init(void) {
     int ret;
     wuwa_info("helo!\n");
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
     ret = disable_kprobe_blacklist();
     if (ret) {
         wuwa_err("disable_kprobe_blacklist failed: %d\n", ret);
         return ret;
     }
+#endif 
 
     ret = wuwa_proto_init();
     if (ret) {
@@ -83,6 +85,6 @@ module_exit(wuwa_exit);
 MODULE_AUTHOR("fuqiuluo");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("https://github.com/fuqiuluo/android-wuwa");
-MODULE_VERSION("1.0.1");
+MODULE_VERSION("1.0.2");
 
 MODULE_IMPORT_NS(DMA_BUF);

@@ -14,3 +14,4 @@ wuwa_gpu.h
 wuwa_gpu.c
 wuwa_msm.h
 wuwa_msm.c
+settings.json

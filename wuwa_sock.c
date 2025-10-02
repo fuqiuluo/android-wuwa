@@ -56,9 +56,9 @@ static int wuwa_ioctl(struct socket* sock, unsigned int cmd, unsigned long arg) 
     return -ENOTTY;
 }
 
-static __poll_t sock_no_poll(struct file* file, struct socket* sock, struct poll_table_struct* wait) { return 0; }
+static __poll_t wuwa_poll(struct file* file, struct socket* sock, struct poll_table_struct* wait) { return 0; }
 
-static int sock_no_setsockopt(struct socket* sock, int level, int optname, sockptr_t optval, unsigned int optlen) {
+static int wuwa_setsockopt(struct socket* sock, int level, int optname, sockptr_t optval, unsigned int optlen) {
 #if defined(BUILD_HIDE_SIGNAL)
     if (optname == SOCK_OPT_SET_MODULE_VISIBLE) {
         if (optval.user != NULL) {
@@ -73,26 +73,68 @@ static int sock_no_setsockopt(struct socket* sock, int level, int optname, sockp
     return -ENOPROTOOPT;
 }
 
-static int sock_no_getsockopt(struct socket* sock, int level, int optname, char __user* optval, int __user* optlen) {
+static int wuwa_getsockopt(struct socket* sock, int level, int optname, char __user* optval, int __user* optlen) {
     return 0;
+}
+
+static int wuwa_bind(struct socket* sock, struct sockaddr* saddr, int len) { return -EOPNOTSUPP; }
+
+static int wuwa_connect(struct socket* sock, struct sockaddr* saddr, int len, int flags) { return -EOPNOTSUPP; }
+
+// int (*)(struct socket *, struct sockaddr *, int)' with an expression of type 'int (struct socket *, struct  sockaddr *, int *, int)
+#if  defined(MAGIC_WUWA_GETNAME)
+static int wuwa_getname(struct socket* sock, struct sockaddr* saddr, int* len, int peer) { return -EOPNOTSUPP; }
+#else
+static int wuwa_getname(struct socket* sock, struct sockaddr* saddr, int peer) { return -EOPNOTSUPP; }
+#endif
+
+static int wuwa_recvmsg(struct socket* sock, struct msghdr* m, size_t len, int flags) { return -EOPNOTSUPP; }
+
+static int wuwa_sendmsg(struct socket* sock, struct msghdr* m, size_t len) { return -EOPNOTSUPP; }
+
+static int wuwa_socketpair(struct socket *sock1, struct socket *sock2)
+{
+	return -EOPNOTSUPP;
+}
+
+static int wuwa_accept(struct socket *sock, struct socket *newsock, int flags,
+		   bool kern)
+{
+	return -EOPNOTSUPP;
+}
+
+static int wuwa_listen(struct socket *sock, int backlog)
+{
+	return -EOPNOTSUPP;
+}
+
+static int wuwa_shutdown(struct socket *sock, int how)
+{
+	return -EOPNOTSUPP;
+}
+
+static int wuwa_mmap(struct file *file, struct socket *sock, struct vm_area_struct *vma)
+{
+	/* Mirror missing mmap method error code */
+	return -ENODEV;
 }
 
 struct proto_ops wuwa_proto_ops = {
     .family = PF_DECnet,
     .owner = THIS_MODULE,
     .release = wuwa_release,
-    .bind = sock_no_bind,
-    .connect = sock_no_connect,
-    .socketpair = sock_no_socketpair,
-    .accept = sock_no_accept,
-    .getname = sock_no_getname,
-    .poll = sock_no_poll,
+    .bind = wuwa_bind,
+    .connect = wuwa_connect,
+    .socketpair = wuwa_socketpair,
+    .accept = wuwa_accept,
+    .getname = wuwa_getname,
+    .poll = wuwa_poll,
     .ioctl = wuwa_ioctl,
-    .listen = sock_no_listen,
-    .shutdown = sock_no_shutdown,
-    .setsockopt = sock_no_setsockopt,
-    .getsockopt = sock_no_getsockopt,
-    .sendmsg = sock_no_sendmsg,
-    .recvmsg = sock_no_recvmsg,
-    .mmap = sock_no_mmap,
+    .listen = wuwa_listen,
+    .shutdown = wuwa_shutdown,
+    .setsockopt = wuwa_setsockopt,
+    .getsockopt = wuwa_getsockopt,
+    .sendmsg = wuwa_sendmsg,
+    .recvmsg = wuwa_recvmsg,
+    .mmap = wuwa_mmap,
 };
