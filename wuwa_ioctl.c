@@ -235,7 +235,7 @@ static int wuwa_dmabuf_mmap(struct dma_buf* dmabuf, struct vm_area_struct* vma) 
     }
 
     pfn = page_to_pfn(page);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0))
     vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
 #else
     vm_flags_set(vma, vma->vm_flags | VM_DONTEXPAND | VM_DONTDUMP);
