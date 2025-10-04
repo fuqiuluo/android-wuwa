@@ -436,6 +436,52 @@ pid_t find_process_by_name(const char* name) {
 }
 
 #else
+int get_cmdline_ex(struct task_struct* task, char* buffer, int buflen) {
+    int res = 0;
+    unsigned int len;
+    struct mm_struct* mm = get_task_mm(task);
+    unsigned long arg_start, arg_end, env_start, env_end;
+    if (!mm)
+        goto out;
+    if (!mm->arg_end)
+        goto out_mm; /* Shh! No looking before we're done */
+
+    spin_lock(&mm->arg_lock);
+    arg_start = mm->arg_start;
+    arg_end = mm->arg_end;
+    env_start = mm->env_start;
+    env_end = mm->env_end;
+    spin_unlock(&mm->arg_lock);
+
+    len = arg_end - arg_start;
+
+    if (len > buflen)
+        len = buflen;
+
+    res = access_process_vm(task, arg_start, buffer, len, FOLL_FORCE);
+
+    /*
+     * If the nul at the end of args has been overwritten, then
+     * assume application is using setproctitle(3).
+     */
+    if (res > 0 && buffer[res - 1] != '\0' && len < buflen) {
+        len = strnlen(buffer, res);
+        if (len < res) {
+            res = len;
+        } else {
+            len = env_end - env_start;
+            if (len > buflen - res)
+                len = buflen - res;
+            res += access_process_vm(task, env_start, buffer + res, len, FOLL_FORCE);
+            res = strnlen(buffer, res);
+        }
+    }
+out_mm:
+    mmput(mm);
+out:
+    return res;
+}
+
 pid_t find_process_by_name(const char* name) {
     struct task_struct* task;
     char cmdline[256];
@@ -456,11 +502,32 @@ pid_t find_process_by_name(const char* name) {
         }
 
         cmdline[0] = '\0';
+        ret = get_cmdline_ex(task, cmdline, sizeof(cmdline));
 
-        // 回退到task->comm，确保完全匹配
-        if (strlen(task->comm) == name_len && strncmp(task->comm, name, name_len) == 0) {
-            rcu_read_unlock();
-            return task->pid;
+        if (ret < 0) {
+            // 回退到task->comm，确保完全匹配
+            if (strlen(task->comm) == name_len && strncmp(task->comm, name, name_len) == 0) {
+                rcu_read_unlock();
+                return task->pid;
+            }
+        } else {
+            // 提取程序名（第一个空格之前的部分）
+            prog_name = cmdline;
+            char* space = strchr(cmdline, ' ');
+            if (space) {
+                *space = '\0';
+            }
+
+            // 提取路径中的文件名部分
+            char* slash = strrchr(prog_name, '/');
+            if (slash) {
+                prog_name = slash + 1;
+            }
+
+            if (strlen(prog_name) == name_len && strncmp(prog_name, name, name_len) == 0) {
+                rcu_read_unlock();
+                return task->pid;
+            }
         }
     }
     rcu_read_unlock();
