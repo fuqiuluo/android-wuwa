@@ -16,8 +16,8 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 
-#include "wuwa_safe_signal.h"
 #include "wuwa_proc.h"
+#include "wuwa_safe_signal.h"
 
 int do_vaddr_translate(struct socket* sock, void* arg) {
     struct wuwa_addr_translate_cmd cmd;
@@ -389,9 +389,9 @@ int do_pte_mapping(struct socket* sock, void* arg) {
     }
 
     static int (*my__pmd_alloc)(struct mm_struct* mm, pud_t* pud, unsigned long address) = NULL;
-    my__pmd_alloc = (int (*)(struct mm_struct*, pud_t*, unsigned long))kallsyms_lookup_name("__pmd_alloc");
+    my__pmd_alloc = (int (*)(struct mm_struct*, pud_t*, unsigned long))kallsyms_lookup_name_ex("__pmd_alloc");
     static int (*my__pte_alloc)(struct mm_struct* mm, pmd_t* pmd) = NULL;
-    my__pte_alloc = (int (*)(struct mm_struct*, pmd_t*))kallsyms_lookup_name("__pte_alloc");
+    my__pte_alloc = (int (*)(struct mm_struct*, pmd_t*))kallsyms_lookup_name_ex("__pte_alloc");
 
     if (my__pmd_alloc == NULL || my__pte_alloc == NULL) {
         wuwa_err("failed to find __pmd_alloc or __pte_alloc symbols\n");
@@ -552,7 +552,7 @@ int do_page_table_walk(struct socket* sock, void* arg) {
 
 // static void (*wake_up_new_task)(struct task_struct *tsk) = NULL;
 // if (!wake_up_new_task) {
-//     wake_up_new_task = (void (*)(struct task_struct *))kallsyms_lookup_name("wake_up_new_task");
+//     wake_up_new_task = (void (*)(struct task_struct *))kallsyms_lookup_name_ex("wake_up_new_task");
 // }
 //
 // wake_up_new_task(p);
@@ -562,7 +562,7 @@ int do_page_table_walk(struct socket* sock, void* arg) {
 //             int node,
 //             struct kernel_clone_args *args) = NULL;
 // if (copy_process == NULL) {
-//     copy_process = (typeof(copy_process))kallsyms_lookup_name("copy_process");
+//     copy_process = (typeof(copy_process))kallsyms_lookup_name_ex("copy_process");
 // }
 //
 // if (!copy_process) {
@@ -788,7 +788,7 @@ int do_is_process_alive(struct socket* sock, void* arg) {
     return 0;
 }
 int do_hide_process(struct socket* sock, void* arg) {
-    struct task_struct *task;
+    struct task_struct* task;
     struct wuwa_hide_proc_cmd cmd;
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
@@ -811,6 +811,121 @@ int do_give_root(struct socket* sock, void* arg) {
     cmd.result = give_root();
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
+int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
+    struct wuwa_read_physical_memory_ioremap_cmd cmd;
+    pgprot_t prot;
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+//     if (cmd.size == 0 || cmd.size > PAGE_SIZE) {
+//         return -EFAULT;
+//     }
+//
+//     if (cmd.prot < MT_NORMAL || cmd.prot > MT_NORMAL_iNC_oWB) {
+//         return -EINVAL;
+//     }
+//
+//     if (cmd.prot == MT_NORMAL) {
+//         prot = __pgprot(PROT_NORMAL);
+//     } else if (cmd.prot == MT_NORMAL_TAGGED) {
+// #if defined(PROT_NORMAL_TAGGED)
+//         prot = __pgprot(PROT_NORMAL_TAGGED);
+// #else
+//         wuwa_warn("PROT_NORMAL_TAGGED not defined on this kernel\n");
+//         return -EINVAL;
+// #endif
+//     } else if (cmd.prot == MT_NORMAL_NC) {
+// #if defined(PROT_NORMAL_NC)
+//         prot = __pgprot(PROT_NORMAL_NC);
+// #else
+//         wuwa_warn("PROT_NORMAL_NC not defined on this kernel\n");
+//         return -EINVAL;
+// #endif
+//     } else if (cmd.prot == MT_NORMAL_WT) {
+// #if defined(PROT_NORMAL_WT)
+//         prot = __pgprot(PROT_NORMAL_WT);
+// #else
+//         wuwa_warn("PROT_NORMAL_WT not defined on this kernel\n");
+//         return -EINVAL;
+// #endif
+//     } else if (cmd.prot == MT_DEVICE_nGnRnE) {
+// #if defined(PROT_DEVICE_nGnRnE)
+//         prot = __pgprot(PROT_DEVICE_nGnRnE);
+// #else
+//         wuwa_warn("PROT_DEVICE_nGnRnE not defined on this kernel\n");
+//         return -EINVAL;
+// #endif
+//     } else if (cmd.prot == MT_DEVICE_nGnRE) {
+// #if defined(PROT_DEVICE_nGnRE)
+//         prot = __pgprot(PROT_DEVICE_nGnRE);
+// #else
+//         wuwa_warn("PROT_DEVICE_nGnRE not defined on this kernel\n");
+//         return -EINVAL;
+// #endif
+//     } else {
+//         wuwa_warn("invalid prot: %d\n", cmd.prot);
+//         return -EINVAL;
+//     }
+//
+//     struct pid* pid_struct = find_get_pid(cmd.pid);
+//     if (!pid_struct) {
+//         wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
+//         return -ESRCH;
+//     }
+//
+//     struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
+//     if (!task) {
+//         put_pid(pid_struct);
+//         wuwa_warn("failed to get task: %d\n", cmd.pid);
+//         return -ESRCH;
+//     }
+//
+//     struct mm_struct* mm = get_task_mm(task);
+//     if (!mm) {
+//         wuwa_warn("failed to get mm: %d\n", cmd.pid);
+//         put_task_struct(task);
+//         put_pid(pid_struct);
+//         return -ESRCH;
+//     }
+//
+//     cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.src_va);
+//     mmput(mm);
+//     put_task_struct(task);
+//     put_pid(pid_struct);
+//
+//     if (cmd.phy_addr == 0) {
+//         return -EFAULT;
+//     }
+//
+//     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+//         return -EFAULT;
+//     }
+//
+//     phys_addr_t pa = cmd.phy_addr;
+//     unsigned long pfn = __phys_to_pfn(pa);
+//     if (pa && pfn_valid(pfn)) {
+//         void* mapped = wuwa_ioremap_prot(pa, cmd.size, prot);
+//         if (copy_to_user((void*)cmd.dst_va, mapped, cmd.size)) {
+//             iounmap(mapped);
+//             return -EACCES;
+//         }
+//         iounmap(mapped);
+//         return 0;
+//     }
+
+    return -EFAULT;
+}
+
+int do_write_physical_memory_ioremap(struct socket* sock, void* arg) {
+    struct wuwa_write_physical_memory_ioremap_cmd cmd;
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 

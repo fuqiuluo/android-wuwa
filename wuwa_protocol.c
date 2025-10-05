@@ -1,7 +1,12 @@
 #include "wuwa_protocol.h"
+
+#include <asm-generic/errno.h>
+
 #include "wuwa_common.h"
 
 #include <net/sock.h>
+
+#include "wuwa_ioctl.h"
 #include "wuwa_sock.h"
 
 static int free_family = AF_DECnet;
@@ -13,7 +18,11 @@ struct proto wuwa_proto = {
 };
 
 static int register_free_family(void) {
-    int err = 0;
+    int err = 0, i = 0;
+
+    for (i = 0; i < ARRAY_SIZE(ioctl_handlers); i++) {
+        wuwa_info("registered ioctl command: %u\n", ioctl_handlers[i].cmd);
+    }
 
     for (int family = free_family; family < NPROTO; family++) {
         wuwa_family_ops.family = family;

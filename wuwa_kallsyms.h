@@ -11,7 +11,7 @@
     static void* _wuwa_sym_##name __section(".data");                                                                  \
     static void* __maybe_unused get_##name(void) { return _wuwa_sym_##name; }                                          \
     static int __maybe_unused ksym_find_##name(void) {                                                                 \
-        _wuwa_sym_##name = (void*)kallsyms_lookup_name(#name);                                                         \
+        _wuwa_sym_##name = (void*)kallsyms_lookup_name_ex(#name);                                                         \
         if (!_wuwa_sym_##name) {                                                                                       \
             ovo_err("Failed to find symbol: %s\n", #name);                                                             \
             return -ENOENT;                                                                                            \
@@ -25,7 +25,7 @@
         if (wuwa_##name) {                                                                                             \
             return 0;                                                                                                  \
         }                                                                                                              \
-        wuwa_##name = (typeof(wuwa_##name))kallsyms_lookup_name(#name);                                                \
+        wuwa_##name = (typeof(wuwa_##name))kallsyms_lookup_name_ex(#name);                                                \
         if (!wuwa_##name) {                                                                                            \
             ovo_err("Failed to find symbol: %s\n", #name);                                                             \
             return -ENOENT;                                                                                            \

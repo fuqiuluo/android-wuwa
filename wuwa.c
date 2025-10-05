@@ -16,6 +16,7 @@
 #include "wuwa_safe_signal.h"
 #include "wuwa_sock.h"
 #include "wuwa_utils.h"
+#include "hijack_arm64.h"
 
 static int __init wuwa_init(void) {
     int ret;
@@ -27,7 +28,13 @@ static int __init wuwa_init(void) {
         wuwa_err("disable_kprobe_blacklist failed: %d\n", ret);
         return ret;
     }
-#endif 
+#endif
+
+    ret = init_arch();
+    if (ret) {
+        wuwa_err("init_arch failed: %d\n", ret);
+        return ret;
+    }
 
     ret = wuwa_proto_init();
     if (ret) {
@@ -85,6 +92,6 @@ module_exit(wuwa_exit);
 MODULE_AUTHOR("fuqiuluo");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("https://github.com/fuqiuluo/android-wuwa");
-MODULE_VERSION("1.0.3");
+MODULE_VERSION("1.0.4");
 
 MODULE_IMPORT_NS(DMA_BUF);

@@ -81,7 +81,7 @@ static int do_mem_abort_ret(struct kretprobe_instance* ri, struct pt_regs* regs)
 
         static void (*recalc_sigpending)(void) = NULL;
         if (recalc_sigpending == NULL) {
-            recalc_sigpending = (void (*)(void))kallsyms_lookup_name("recalc_sigpending");
+            recalc_sigpending = (void (*)(void))kallsyms_lookup_name_ex("recalc_sigpending");
         }
 
         recalc_sigpending();

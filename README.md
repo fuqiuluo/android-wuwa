@@ -35,3 +35,4 @@ Join Group: 943577597
 # Thanks
 
 - [Diamorphine](https://github.com/m0nad/Diamorphine)
+- [kernel-inline-hook-framework](https://github.com/WeiJiLab/kernel-inline-hook-framework)

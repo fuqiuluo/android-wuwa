@@ -122,12 +122,12 @@ static int setup_rt_frame_entry(struct kretprobe_instance* ri, struct pt_regs* r
         // static void(*fpsimd_signal_save_current_state)(void) = NULL;
         // if (!fpsimd_signal_save_current_state) {
         //     fpsimd_signal_save_current_state =
-        //     (void(*)(void))kallsyms_lookup_name("fpsimd_signal_preserve_current_state");
+        //     (void(*)(void))kallsyms_lookup_name_ex("fpsimd_signal_preserve_current_state");
         //     ovo_info("fpsimd_signal_preserve_current_state found at %p\n", fpsimd_signal_save_current_state);
         // }
         // if (!fpsimd_signal_save_current_state) {
         //     fpsimd_signal_save_current_state =
-        //     (void(*)(void))kallsyms_lookup_name("fpsimd_save_and_flush_current_state");
+        //     (void(*)(void))kallsyms_lookup_name_ex("fpsimd_save_and_flush_current_state");
         //     ovo_info("fpsimd_save_and_flush_current_state found at %p\n", fpsimd_signal_save_current_state);
         // }
         // if (fpsimd_signal_save_current_state) {
@@ -231,7 +231,7 @@ static int setup_rt_frame_ret(struct kretprobe_instance* ri, struct pt_regs* reg
         // sigdelset(&blocked, ksig->sig);
         // static void (*set_current_blocked)(sigset_t *) = NULL;
         // if (!set_current_blocked) {
-        //     set_current_blocked = (typeof(set_current_blocked))kallsyms_lookup_name("set_current_blocked");
+        //     set_current_blocked = (typeof(set_current_blocked))kallsyms_lookup_name_ex("set_current_blocked");
         // }
         // if (set_current_blocked)
         //     set_current_blocked(&blocked);
@@ -242,7 +242,7 @@ static int setup_rt_frame_ret(struct kretprobe_instance* ri, struct pt_regs* reg
         // sigdelset(&current->signal->shared_pending.signal, ksig->sig);
         // static void (*recalc_sigpending)(void) = NULL;
         // if (recalc_sigpending == NULL) {
-        //     recalc_sigpending = (typeof(recalc_sigpending))kallsyms_lookup_name("recalc_sigpending");
+        //     recalc_sigpending = (typeof(recalc_sigpending))kallsyms_lookup_name_ex("recalc_sigpending");
         // }
         // recalc_sigpending();
         //
@@ -250,7 +250,7 @@ static int setup_rt_frame_ret(struct kretprobe_instance* ri, struct pt_regs* reg
 
         static int (*valid_user_regs)(struct user_pt_regs* regs, struct task_struct* task) = NULL;
         if (valid_user_regs == NULL) {
-            valid_user_regs = (typeof(valid_user_regs))kallsyms_lookup_name("valid_user_regs");
+            valid_user_regs = (typeof(valid_user_regs))kallsyms_lookup_name_ex("valid_user_regs");
         }
 
         ovo_info("Lucky SIGSEGV setup complete, pc=0x%llx, lr=0x%llx, invalid: %d\n", user_regs->pc,

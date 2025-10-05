@@ -6,6 +6,13 @@
 #include <linux/pgtable.h>
 #include <linux/printk.h>
 #include <linux/proc_fs.h>
+#include <linux/vmalloc.h>
+
+#ifdef CONFIG_CFI_CLANG
+#define NO_CFI __nocfi
+#else
+#define NO_CFI
+#endif
 
 static int wuwa_flip_open(const char* filename, int flags, umode_t mode, struct file** f) {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
@@ -16,7 +23,7 @@ static int wuwa_flip_open(const char* filename, int flags, umode_t mode, struct 
 
     if (reserve_flip_open == NULL) {
         reserve_flip_open =
-            (struct file * (*)(const char* filename, int flags, umode_t mode)) kallsyms_lookup_name("filp_open");
+            (struct file * (*)(const char* filename, int flags, umode_t mode)) kallsyms_lookup_name_ex("filp_open");
         if (reserve_flip_open == NULL) {
             return -1;
         }
@@ -35,7 +42,7 @@ static int wuwa_flip_close(struct file** f, fl_owner_t id) {
     static struct file* (*reserve_flip_close)(struct file** f, fl_owner_t id) = NULL;
 
     if (reserve_flip_close == NULL) {
-        reserve_flip_close = (struct file * (*)(struct file * *f, fl_owner_t id)) kallsyms_lookup_name("filp_close");
+        reserve_flip_close = (struct file * (*)(struct file * *f, fl_owner_t id)) kallsyms_lookup_name_ex("filp_close");
         if (reserve_flip_close == NULL) {
             return -1;
         }
@@ -143,10 +150,14 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
     return page_addr + (va & PAGE_SIZE - 1);
 }
 
-unsigned long kallsyms_lookup_name(const char* name) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
-    typedef unsigned long (*kallsyms_lookup_name_t)(const char* name);
+typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
 
+static unsigned long NO_CFI call_kln(kallsyms_lookup_name_t f, const char *n) {
+    return f(n);
+}
+
+unsigned long kallsyms_lookup_name_ex(const char* name) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0)
     static kallsyms_lookup_name_t lookup_name = NULL;
     if (lookup_name == NULL) {
         struct kprobe kp = {.symbol_name = "kallsyms_lookup_name"};
@@ -157,10 +168,17 @@ unsigned long kallsyms_lookup_name(const char* name) {
 
         lookup_name = (kallsyms_lookup_name_t)kp.addr;
         unregister_kprobe(&kp);
+
+        if (lookup_name == NULL) {
+            wuwa_err("kallsyms_lookup_name not found\n");
+            return 0;
+        }
+        wuwa_info("kallsyms_lookup_name_ex found at %p\n", lookup_name);
     }
-    return lookup_name(name);
+
+    return call_kln(lookup_name, name);
 #else
-    return kallsyms_lookup_name(symbol_name);
+    return kallsyms_lookup_name(name);
 #endif
 }
 
@@ -181,7 +199,7 @@ struct task_struct* get_target_task(pid_t pid) {
 
 int disable_kprobe_blacklist(void) {
     struct kprobe_blacklist_entry* ent;
-    struct list_head* kprobe_blacklist = (struct list_head*)kallsyms_lookup_name("kprobe_blacklist");
+    struct list_head* kprobe_blacklist = (struct list_head*)kallsyms_lookup_name_ex("kprobe_blacklist");
     if (!kprobe_blacklist) {
         wuwa_err("kprobe_blacklist not found\n");
         return -ENOENT;
@@ -389,7 +407,7 @@ pid_t find_process_by_name(const char* name) {
 
     static int (*my_get_cmdline)(struct task_struct* task, char* buffer, int buflen) = NULL;
     if (my_get_cmdline == NULL) {
-        my_get_cmdline = (void*)kallsyms_lookup_name("get_cmdline");
+        my_get_cmdline = (void*)kallsyms_lookup_name_ex("get_cmdline");
     }
 
     rcu_read_lock();
@@ -583,8 +601,8 @@ int give_root(void) {
     static struct cred* (*my_prepare_creds)(void) = NULL;
     static int (*my_commit_creds)(struct cred*) = NULL;
     if (my_prepare_creds == NULL) {
-        my_prepare_creds = (void*)kallsyms_lookup_name("prepare_creds");
-        my_commit_creds = (void*)kallsyms_lookup_name("commit_creds");
+        my_prepare_creds = (void*)kallsyms_lookup_name_ex("prepare_creds");
+        my_commit_creds = (void*)kallsyms_lookup_name_ex("commit_creds");
         if (my_prepare_creds == NULL || my_commit_creds == NULL) {
             return -1;
         }
@@ -609,81 +627,76 @@ int give_root(void) {
     return 0;
 }
 
+void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot) {
+    unsigned long offset, vaddr;
+    phys_addr_t last_addr;
+    struct vm_struct* area;
+    int err;
 
-struct karray_list* arraylist_create(size_t initial_capacity) {
-    struct karray_list* list = kmalloc(sizeof(*list), GFP_KERNEL);
-    if (!list)
+    offset = phys_addr & ~PAGE_MASK;
+    /*
+     * Page align the mapping address and size, taking account of any
+     * offset.
+     */
+    phys_addr &= PAGE_MASK;
+    size = PAGE_ALIGN(size + offset);
+
+    /*
+     * Don't allow wraparound, zero size or outside PHYS_MASK.
+     */
+    last_addr = phys_addr + size - 1;
+    if (!size || last_addr < phys_addr || last_addr & ~PHYS_MASK)
         return NULL;
 
-    if (initial_capacity < ARRAYLIST_DEFAULT_CAPACITY)
-        initial_capacity = ARRAYLIST_DEFAULT_CAPACITY;
+    static int (*my_ioremap_page_range)(unsigned long addr, unsigned long end,
+               phys_addr_t phys_addr, pgprot_t prot) = NULL;
+    static void (*my_free_vm_area)(struct vm_struct *area) = NULL;
+    if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
+        my_ioremap_page_range = (int (*)(unsigned long addr, unsigned long end,
+                   phys_addr_t phys_addr, pgprot_t prot))kallsyms_lookup_name_ex("ioremap_page_range");
+        my_free_vm_area = (void (*)(struct vm_struct *area))kallsyms_lookup_name_ex("free_vm_area");
+        if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
+            wuwa_err("cannot find ioremap_page_range or free_vm_area\n");
+            return NULL;
+        }
+    }
 
-    list->data = kmalloc_array(initial_capacity, sizeof(void*), GFP_KERNEL);
-    if (!list->data) {
-        kfree(list);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+    static struct vm_struct *(*my__get_vm_area_caller)(unsigned long size,
+                    unsigned long flags,
+                    unsigned long start, unsigned long end,
+                    const void *caller) = NULL;
+    if (my__get_vm_area_caller == NULL) {
+        my__get_vm_area_caller = (struct vm_struct * (*)(unsigned long, unsigned long, unsigned long, unsigned long, const void *))kallsyms_lookup_name_ex("__get_vm_area_caller");
+        if (my__get_vm_area_caller == NULL) {
+            wuwa_err("cannot find __get_vm_area_caller\n");
+            return NULL;
+        }
+    }
+    area = my__get_vm_area_caller(size, VM_IOREMAP, VMALLOC_START, VMALLOC_END, __builtin_return_address(0));
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+    static struct vm_struct* (*my_get_vm_area_caller)(unsigned long, unsigned long, const void*) = NULL;
+    if (my_get_vm_area_caller == NULL) {
+        my_get_vm_area_caller =
+            (struct vm_struct * (*)(unsigned long, unsigned long, const void*))kallsyms_lookup_name_ex("get_vm_area_caller");
+        if (my_get_vm_area_caller == NULL) {
+            wuwa_err("cannot find get_vm_area_caller\n");
+            return NULL;
+        }
+    }
+    area = my_get_vm_area_caller(size, VM_IOREMAP, __builtin_return_address(0));
+#endif
+
+    if (!area)
+        return NULL;
+    vaddr = (unsigned long)area->addr;
+    area->phys_addr = phys_addr;
+
+    err = my_ioremap_page_range(vaddr, vaddr + size, phys_addr, prot);
+    if (err) {
+        my_free_vm_area(area);
         return NULL;
     }
 
-    list->size = 0;
-    list->capacity = initial_capacity;
-    return list;
-}
-
-static int ensure_capacity(struct karray_list* list, size_t min_capacity) {
-    if (min_capacity <= list->capacity)
-        return 0;
-
-    size_t new_capacity = list->capacity + (list->capacity >> 1);
-    if (new_capacity < min_capacity)
-        new_capacity = min_capacity;
-
-    void** new_data = krealloc_array(list->data, new_capacity, sizeof(void*), GFP_KERNEL);
-    if (!new_data)
-        return -ENOMEM;
-
-    list->data = new_data;
-    list->capacity = new_capacity;
-    return 0;
-}
-
-int arraylist_add(struct karray_list* list, void* element) {
-    int ret = 0;
-
-    if (ensure_capacity(list, list->size + 1)) {
-        ret = -ENOMEM;
-        goto out;
-    }
-
-    list->data[list->size++] = element;
-
-out:
-    return ret;
-}
-
-void* arraylist_get(struct karray_list* list, size_t index) {
-    void* element = NULL;
-
-    if (index < list->size)
-        element = list->data[index];
-    return element;
-}
-
-void* arraylist_remove(struct karray_list* list, size_t index) {
-    void* element = NULL;
-
-    if (index >= list->size)
-        goto out;
-
-    element = list->data[index];
-    memmove(&list->data[index], &list->data[index + 1], (list->size - index - 1) * sizeof(void*));
-    list->size--;
-
-out:
-    return element;
-}
-
-void arraylist_destroy(struct karray_list* list) {
-    if (list->data)
-        kfree(list->data);
-    kfree(list);
+    return (void __iomem*)(vaddr + offset);
 }

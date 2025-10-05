@@ -6,6 +6,7 @@
 #include <linux/types.h>
 #include <linux/version.h>
 #include "wuwa_common.h"
+#include "karray_list.h"
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
 #include <linux/mmap_lock.h>
@@ -29,7 +30,7 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va);
 
 struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va);
 
-unsigned long kallsyms_lookup_name(const char* symbol_name);
+unsigned long kallsyms_lookup_name_ex(const char* symbol_name);
 
 struct task_struct* get_target_task(pid_t pid);
 
@@ -55,19 +56,6 @@ void hide_module(void);
 
 int give_root(void);
 
-#define ARRAYLIST_DEFAULT_CAPACITY 16
-
-struct karray_list {
-    void** data;
-    size_t size;
-    size_t capacity;
-};
-
-struct karray_list* arraylist_create(size_t initial_capacity);
-void arraylist_destroy(struct karray_list* list);
-void* arraylist_remove(struct karray_list* list, size_t index);
-void* arraylist_get(struct karray_list* list, size_t index);
-int arraylist_add(struct karray_list* list, void* element);
-
+void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot);
 
 #endif // WUWA_UTILS_H
