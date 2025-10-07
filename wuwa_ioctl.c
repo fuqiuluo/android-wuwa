@@ -828,41 +828,41 @@ int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
 //         return -EFAULT;
 //     }
 //
-//     if (cmd.prot < MT_NORMAL || cmd.prot > MT_NORMAL_iNC_oWB) {
+//     if (cmd.prot < WMT_NORMAL || cmd.prot > WMT_NORMAL_iNC_oWB) {
 //         return -EINVAL;
 //     }
 //
-//     if (cmd.prot == MT_NORMAL) {
+//     if (cmd.prot == WMT_NORMAL) {
 //         prot = __pgprot(PROT_NORMAL);
-//     } else if (cmd.prot == MT_NORMAL_TAGGED) {
+//     } else if (cmd.prot == WMT_NORMAL_TAGGED) {
 // #if defined(PROT_NORMAL_TAGGED)
 //         prot = __pgprot(PROT_NORMAL_TAGGED);
 // #else
 //         wuwa_warn("PROT_NORMAL_TAGGED not defined on this kernel\n");
 //         return -EINVAL;
 // #endif
-//     } else if (cmd.prot == MT_NORMAL_NC) {
+//     } else if (cmd.prot == WMT_NORMAL_NC) {
 // #if defined(PROT_NORMAL_NC)
 //         prot = __pgprot(PROT_NORMAL_NC);
 // #else
 //         wuwa_warn("PROT_NORMAL_NC not defined on this kernel\n");
 //         return -EINVAL;
 // #endif
-//     } else if (cmd.prot == MT_NORMAL_WT) {
+//     } else if (cmd.prot == WMT_NORMAL_WT) {
 // #if defined(PROT_NORMAL_WT)
 //         prot = __pgprot(PROT_NORMAL_WT);
 // #else
 //         wuwa_warn("PROT_NORMAL_WT not defined on this kernel\n");
 //         return -EINVAL;
 // #endif
-//     } else if (cmd.prot == MT_DEVICE_nGnRnE) {
+//     } else if (cmd.prot == WMT_DEVICE_nGnRnE) {
 // #if defined(PROT_DEVICE_nGnRnE)
 //         prot = __pgprot(PROT_DEVICE_nGnRnE);
 // #else
 //         wuwa_warn("PROT_DEVICE_nGnRnE not defined on this kernel\n");
 //         return -EINVAL;
 // #endif
-//     } else if (cmd.prot == MT_DEVICE_nGnRE) {
+//     } else if (cmd.prot == WMT_DEVICE_nGnRE) {
 // #if defined(PROT_DEVICE_nGnRE)
 //         prot = __pgprot(PROT_DEVICE_nGnRE);
 // #else
