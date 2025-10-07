@@ -127,14 +127,14 @@ struct wuwa_give_root_cmd {
     int result; /* Output: 0 on success, negative error code on failure */
 };
 
-#define MT_NORMAL 0
-#define MT_NORMAL_TAGGED 1
-#define MT_NORMAL_NC 2
-#define MT_NORMAL_WT 3
-#define MT_DEVICE_nGnRnE 4
-#define MT_DEVICE_nGnRE 5
-#define MT_DEVICE_GRE 6
-#define MT_NORMAL_iNC_oWB 7
+#define WMT_NORMAL 0
+#define WMT_NORMAL_TAGGED 1
+#define WMT_NORMAL_NC 2
+#define WMT_NORMAL_WT 3
+#define WMT_DEVICE_nGnRnE 4
+#define WMT_DEVICE_nGnRE 5
+#define WMT_DEVICE_GRE 6
+#define WMT_NORMAL_iNC_oWB 7
 
 struct wuwa_read_physical_memory_ioremap_cmd {
     pid_t pid; /* Input: Process ID owning the virtual address */
