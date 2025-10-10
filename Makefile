@@ -1,7 +1,6 @@
-MODULE = android-wuwa
+obj-m := android-wuwa.o
 
-obj-m :=$(MODULE).o
-$(MODULE)-objs := \
+android-wuwa-y := \
     src/core/wuwa.o \
     src/net/wuwa_sock.o \
     src/net/wuwa_protocol.o \
@@ -14,22 +13,27 @@ $(MODULE)-objs := \
     src/inlinehook/hijack_arm64.o \
     src/utils/karray_list.o
 
-ccflags-y += -I$(src)
+src := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
+
+$(info WUWA_SRC_DIR: $(src))
+$(info WUWA_OBJ_DIR: $(obj))
+
 ccflags-y += -I$(src)/src/core -I$(src)/src/net -I$(src)/src/ioctl -I$(src)/src/mm
 ccflags-y += -I$(src)/src/inlinehook -I$(src)/src/hook -I$(src)/src/proc -I$(src)/src/utils
+
 ccflags-y += -Wno-implicit-function-declaration -Wno-strict-prototypes -Wno-int-conversion -Wno-gcc-compat
 ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-variable
 
 # 编译时启用 隐藏模块功能
-#EXTRA_CFLAGS += -DHIDE_SELF_MODULE
+#ccflags-y += -DHIDE_SELF_MODULE
 # 编译时启用 PTE_MAPPING 功能
-#EXTRA_CFLAGS += -DBUILD_PTE_MAPPING
+#ccflags-y += -DBUILD_PTE_MAPPING
 # 编译时启用 HIDE_SIGNAL 功能
-#EXTRA_CFLAGS += -DBUILD_HIDE_SIGNAL
-#EXTRA_CFLAGS += -DPTE_WALK
+#ccflags-y += -DBUILD_HIDE_SIGNAL
+#ccflags-y += -DPTE_WALK
 
 all:
-	make -C $(KDIR) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" M=$(PWD) modules
+	make -C $(KDIR) M=$(PWD) modules
 
 clean:
 	make -C $(KDIR) M=$(PWD) clean
