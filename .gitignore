@@ -1,4 +1,6 @@
 /.idea
+/.vscode
+/.claude
 compile_commands.json
 lkm-devtools.toml
 /android-kernel
@@ -15,3 +17,5 @@ wuwa_gpu.c
 wuwa_msm.h
 wuwa_msm.c
 settings.json
+
+CLAUDE.md
