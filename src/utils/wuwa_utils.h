@@ -56,6 +56,8 @@ void hide_module(void);
 
 int give_root(void);
 
+int cfi_bypass(void);
+
 void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot);
 
 #endif // WUWA_UTILS_H

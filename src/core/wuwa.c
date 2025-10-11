@@ -61,6 +61,9 @@ static int __init wuwa_init(void) {
     hide_module();
 #endif
 
+#if defined(BUILD_NO_CFI)
+    wuwa_info("NO_CFI is enabled, patched: %d\n", cfi_bypass());
+#endif
 
     return 0;
 
