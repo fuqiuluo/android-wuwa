@@ -145,7 +145,7 @@ int do_get_page_info(struct socket* sock, void* arg) {
         return -EFAULT;
     }
 
-    phys_addr_t phy_addr = page_to_phys(page_struct);
+    uintptr_t phy_addr = page_to_phys(page_struct);
     cmd.page.phy_addr = phy_addr;
     cmd.page.flags = page_struct->flags;
     cmd.page._mapcount = page_struct->_mapcount;
@@ -436,7 +436,7 @@ prepare_fault:
 }
 
 #if !defined(ARCH_HAS_VALID_PHYS_ADDR_RANGE) || defined(MODULE)
-static inline int memk_valid_phys_addr_range(phys_addr_t addr, size_t size) { return addr + size <= __pa(high_memory); }
+static inline int memk_valid_phys_addr_range(uintptr_t addr, size_t size) { return addr + size <= __pa(high_memory); }
 #define IS_VALID_PHYS_ADDR_RANGE(x, y) memk_valid_phys_addr_range(x, y)
 #else
 #define IS_VALID_PHYS_ADDR_RANGE(x, y) valid_phys_addr_range(x, y)
@@ -444,7 +444,7 @@ static inline int memk_valid_phys_addr_range(phys_addr_t addr, size_t size) { re
 
 int do_read_physical_memory(struct socket* sock, void __user* arg) {
     struct wuwa_read_physical_memory_cmd cmd;
-    phys_addr_t pa;
+    uintptr_t pa;
     void* mapped;
     int ret;
 
@@ -452,7 +452,7 @@ int do_read_physical_memory(struct socket* sock, void __user* arg) {
         return -EFAULT;
     }
 
-    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (phys_addr_t*)&cmd.phy_addr);
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (uintptr_t*)&cmd.phy_addr);
     if (ret < 0) {
         return ret;
     }
@@ -517,7 +517,7 @@ int do_find_process(struct socket* sock, void* arg) {
 
 int do_write_physical_memory(struct socket* sock, void __user* arg) {
     struct wuwa_write_physical_memory_cmd cmd;
-    phys_addr_t pa;
+    uintptr_t pa;
     void* mapped;
     int ret;
 
@@ -525,7 +525,7 @@ int do_write_physical_memory(struct socket* sock, void __user* arg) {
         return -EFAULT;
     }
 
-    ret = translate_process_vaddr(cmd.pid, cmd.dst_va, (phys_addr_t*)&cmd.phy_addr);
+    ret = translate_process_vaddr(cmd.pid, cmd.dst_va, (uintptr_t*)&cmd.phy_addr);
     if (ret < 0) {
         return ret;
     }
@@ -664,7 +664,7 @@ static int convert_wmt_to_pgprot(int wmt_type, pgprot_t* prot_out) {
 int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
     struct wuwa_read_physical_memory_ioremap_cmd cmd;
     pgprot_t prot;
-    phys_addr_t pa;
+    uintptr_t pa;
     void* mapped;
     int ret;
 
@@ -688,7 +688,7 @@ int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
     }
 
     // Translate virtual address to physical
-    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (phys_addr_t*)&cmd.phy_addr);
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (uintptr_t*)&cmd.phy_addr);
     if (ret < 0) {
         return ret;
     }

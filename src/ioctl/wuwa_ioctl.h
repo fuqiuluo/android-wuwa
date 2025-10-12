@@ -4,7 +4,7 @@
 #include "wuwa_common.h"
 
 struct wuwa_addr_translate_cmd {
-    phys_addr_t phy_addr; /* Output: Physical address after translation */
+    uintptr_t phy_addr; /* Output: Physical address after translation */
     pid_t pid; /* Input: Process ID owning the virtual address */
     uintptr_t va; /* Input: Virtual address to translate */
 };
@@ -20,7 +20,7 @@ struct wuwa_debug_info_cmd {
 };
 
 struct wuwa_at_s1e0r_cmd {
-    phys_addr_t phy_addr;
+    uintptr_t phy_addr;
     pid_t pid;
     uintptr_t va;
 };
@@ -46,7 +46,7 @@ struct kernel_page {
     /* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
     atomic_t _refcount;
 
-    phys_addr_t phy_addr;
+    uintptr_t phy_addr;
 };
 
 struct wuwa_page_info_cmd {

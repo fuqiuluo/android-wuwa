@@ -130,7 +130,7 @@ out:
     return ptep;
 }
 
-phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
+uintptr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
     if (!mm) {
         wuwa_warn("mm_struct is NULL, cannot perform translation\n");
         return 0;
@@ -147,7 +147,7 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
         return 0;
     }
 
-    phys_addr_t page_addr = pte_pfn(*ptep) << PAGE_SHIFT;
+    uintptr_t page_addr = pte_pfn(*ptep) << PAGE_SHIFT;
 
     return page_addr + (va & (PAGE_SIZE - 1));
 }
@@ -308,11 +308,11 @@ struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va) {
     return pfn_to_page(wuwa_phys_to_pfn(vaddr_to_phy_addr(mm, va)));
 }
 
-int translate_process_vaddr(pid_t pid, uintptr_t vaddr, phys_addr_t* paddr_out) {
+int translate_process_vaddr(pid_t pid, uintptr_t vaddr, uintptr_t* paddr_out) {
     struct pid* pid_struct;
     struct task_struct* task;
     struct mm_struct* mm;
-    phys_addr_t paddr;
+    uintptr_t paddr;
 
     pid_struct = find_get_pid(pid);
     if (!pid_struct) {
@@ -666,9 +666,9 @@ int give_root(void) {
     return 0;
 }
 
-void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot) {
+void __iomem* wuwa_ioremap_prot(uintptr_t phys_addr, size_t size, pgprot_t prot) {
     unsigned long offset, vaddr;
-    phys_addr_t last_addr;
+    uintptr_t last_addr;
     struct vm_struct* area;
     int err;
 
@@ -688,11 +688,11 @@ void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t pro
         return NULL;
 
     static int (*my_ioremap_page_range)(unsigned long addr, unsigned long end,
-               phys_addr_t phys_addr, pgprot_t prot) = NULL;
+               uintptr_t phys_addr, pgprot_t prot) = NULL;
     static void (*my_free_vm_area)(struct vm_struct *area) = NULL;
     if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
         my_ioremap_page_range = (int (*)(unsigned long addr, unsigned long end,
-                   phys_addr_t phys_addr, pgprot_t prot))kallsyms_lookup_name_ex("ioremap_page_range");
+                   uintptr_t phys_addr, pgprot_t prot))kallsyms_lookup_name_ex("ioremap_page_range");
         my_free_vm_area = (void (*)(struct vm_struct *area))kallsyms_lookup_name_ex("free_vm_area");
         if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
             wuwa_err("cannot find ioremap_page_range or free_vm_area\n");

@@ -26,11 +26,11 @@ bool is_file_exist(const char* filename);
 
 pte_t* page_from_virt_user(struct mm_struct* mm, uintptr_t va);
 
-phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va);
+uintptr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va);
 
 struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va);
 
-int translate_process_vaddr(pid_t pid, uintptr_t vaddr, phys_addr_t* paddr_out);
+int translate_process_vaddr(pid_t pid, uintptr_t vaddr, uintptr_t* paddr_out);
 
 unsigned long kallsyms_lookup_name_ex(const char* symbol_name);
 
@@ -60,6 +60,6 @@ int give_root(void);
 
 int cfi_bypass(void);
 
-void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot);
+void __iomem* wuwa_ioremap_prot(uintptr_t phys_addr, size_t size, pgprot_t prot);
 
 #endif // WUWA_UTILS_H
