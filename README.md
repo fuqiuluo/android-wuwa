@@ -1,6 +1,8 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fuqiuluo/android-wuwa)
 
-Join Group: 943577597
+> Join Group: 943577597
+> 
+> Kernel Driver Development Kit: [Ylarod/ddk](https://github.com/Ylarod/ddk)
 
 # Features
 
