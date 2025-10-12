@@ -30,6 +30,8 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va);
 
 struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va);
 
+int translate_process_vaddr(pid_t pid, uintptr_t vaddr, phys_addr_t* paddr_out);
+
 unsigned long kallsyms_lookup_name_ex(const char* symbol_name);
 
 struct task_struct* get_target_task(pid_t pid);

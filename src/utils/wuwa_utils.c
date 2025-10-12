@@ -149,7 +149,7 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
 
     phys_addr_t page_addr = pte_pfn(*ptep) << PAGE_SHIFT;
 
-    return page_addr + (va & PAGE_SIZE - 1);
+    return page_addr + (va & (PAGE_SIZE - 1));
 }
 
 typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
@@ -306,6 +306,43 @@ struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va) {
 #error "vaddr_to_page failed: pfn_to_page not found"
 #endif
     return pfn_to_page(wuwa_phys_to_pfn(vaddr_to_phy_addr(mm, va)));
+}
+
+int translate_process_vaddr(pid_t pid, uintptr_t vaddr, phys_addr_t* paddr_out) {
+    struct pid* pid_struct;
+    struct task_struct* task;
+    struct mm_struct* mm;
+    phys_addr_t paddr;
+
+    pid_struct = find_get_pid(pid);
+    if (!pid_struct) {
+        wuwa_warn("failed to find pid_struct: %d\n", pid);
+        return -ESRCH;
+    }
+
+    task = get_pid_task(pid_struct, PIDTYPE_PID);
+    put_pid(pid_struct);
+    if (!task) {
+        wuwa_warn("failed to get task: %d\n", pid);
+        return -ESRCH;
+    }
+
+    mm = get_task_mm(task);
+    put_task_struct(task);
+    if (!mm) {
+        wuwa_warn("failed to get mm: %d\n", pid);
+        return -ESRCH;
+    }
+
+    paddr = vaddr_to_phy_addr(mm, vaddr);
+    mmput(mm);
+
+    if (paddr == 0) {
+        return -EFAULT;
+    }
+
+    *paddr_out = paddr;
+    return 0;
 }
 
 uintptr_t get_module_base(pid_t pid, char* name, int vm_flag) {
@@ -714,6 +751,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch __cfi_slowpath successed\n");
         } else {
             wuwa_info("__cfi_slowpath already patched\n");
         }
@@ -725,6 +763,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch __cfi_slowpath_diag successed\n");
         } else {
             wuwa_info("__cfi_slowpath_diag already patched\n");
         }
@@ -736,6 +775,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch _cfi_slowpath successed\n");
         } else {
             wuwa_info("_cfi_slowpath already patched\n");
         }
@@ -747,6 +787,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch __cfi_check_fail successed\n");
         } else {
             wuwa_info("__cfi_check_fail already patched\n");
         }
@@ -758,6 +799,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch __ubsan_handle_cfi_check_fail_abort successed\n");
         } else {
             wuwa_info("__ubsan_handle_cfi_check_fail_abort already patched\n");
         }
@@ -769,6 +811,7 @@ int cfi_bypass(void) {
         if(*p != RET) {
             hook_write_range(p, &RET, INSTRUCTION_SIZE);
             ret++;
+            wuwa_err("patch __ubsan_handle_cfi_check_fail successed\n");
         } else {
             wuwa_info("__ubsan_handle_cfi_check_fail already patched\n");
         }
