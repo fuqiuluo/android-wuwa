@@ -8,6 +8,8 @@
 #include <linux/proc_fs.h>
 #include <linux/vmalloc.h>
 
+#include "hijack_arm64.h"
+
 #ifdef CONFIG_CFI_CLANG
 #define NO_CFI __nocfi
 #else
@@ -128,7 +130,7 @@ out:
     return ptep;
 }
 
-phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
+uintptr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
     if (!mm) {
         wuwa_warn("mm_struct is NULL, cannot perform translation\n");
         return 0;
@@ -145,9 +147,9 @@ phys_addr_t vaddr_to_phy_addr(struct mm_struct* mm, uintptr_t va) {
         return 0;
     }
 
-    phys_addr_t page_addr = pte_pfn(*ptep) << PAGE_SHIFT;
+    uintptr_t page_addr = pte_pfn(*ptep) << PAGE_SHIFT;
 
-    return page_addr + (va & PAGE_SIZE - 1);
+    return page_addr + (va & (PAGE_SIZE - 1));
 }
 
 typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
@@ -215,43 +217,43 @@ int disable_kprobe_blacklist(void) {
         ent->end_addr = 0;
     }
 
-    ovo_info("Disabled %d kprobe blacklist entries\n", count);
+    wuwa_info("Disabled %d kprobe blacklist entries\n", count);
 
     return 0;
 }
 
 void compare_pt_regs(struct pt_regs* regs1, struct pt_regs* regs2) {
 #if CONFIG_COMPARE_PT_REGS == 1
-    ovo_info("==> Comparing pt_regs:\n");
+    wuwa_info("==> Comparing pt_regs:\n");
 
     for (int i = 0; i < 31; ++i) {
         if (regs1->regs[i] != regs2->regs[i]) {
-            ovo_info("reg[%d] changed from %llx to %llx\n", i, regs1->regs[i], regs2->regs[i]);
+            wuwa_info("reg[%d] changed from %llx to %llx\n", i, regs1->regs[i], regs2->regs[i]);
         }
     }
 
     if (regs1->sp != regs2->sp) {
-        ovo_info("sp changed from %llx to %llx\n", regs1->sp, regs2->sp);
+        wuwa_info("sp changed from %llx to %llx\n", regs1->sp, regs2->sp);
     }
 
     if (regs1->pc != regs2->pc) {
-        ovo_info("pc changed from %llx to %llx\n", regs1->pc, regs2->pc);
+        wuwa_info("pc changed from %llx to %llx\n", regs1->pc, regs2->pc);
     }
 
     if (regs1->pstate != regs2->pstate) {
-        ovo_info("pstate changed from %llx to %llx\n", regs1->pstate, regs2->pstate);
+        wuwa_info("pstate changed from %llx to %llx\n", regs1->pstate, regs2->pstate);
     }
 
     if (regs1->sdei_ttbr1 != regs2->sdei_ttbr1) {
-        ovo_info("sdei_ttbr1 changed from %llx to %llx\n", regs1->sdei_ttbr1, regs2->sdei_ttbr1);
+        wuwa_info("sdei_ttbr1 changed from %llx to %llx\n", regs1->sdei_ttbr1, regs2->sdei_ttbr1);
     }
 
     if (regs1->pmr_save != regs2->pmr_save) {
-        ovo_info("pmr_save changed from %llx to %llx\n", regs1->pmr_save, regs2->pmr_save);
+        wuwa_info("pmr_save changed from %llx to %llx\n", regs1->pmr_save, regs2->pmr_save);
     }
 
     if (regs1->stackframe[0] != regs2->stackframe[0] || regs1->stackframe[1] != regs2->stackframe[1]) {
-        ovo_info("stackframe changed from [%llx, %llx] to [%llx, %llx]\n", regs1->stackframe[0], regs1->stackframe[1],
+        wuwa_info("stackframe changed from [%llx, %llx] to [%llx, %llx]\n", regs1->stackframe[0], regs1->stackframe[1],
                  regs2->stackframe[0], regs2->stackframe[1]);
     }
 #endif
@@ -259,39 +261,39 @@ void compare_pt_regs(struct pt_regs* regs1, struct pt_regs* regs2) {
 
 void compare_task_struct(struct task_struct* task1, struct task_struct* task2) {
 #if CONFIG_COMPARE_TASK == 1
-    ovo_info("==> Comparing task_struct:\n");
+    wuwa_info("==> Comparing task_struct:\n");
 #ifdef CONFIG_THREAD_INFO_IN_TASK
     if (task1->thread_info.flags != task2->thread_info.flags) {
-        ovo_info("thread_info.flags changed from %lx to %lx\n", task1->thread_info.flags, task2->thread_info.flags);
+        wuwa_info("thread_info.flags changed from %lx to %lx\n", task1->thread_info.flags, task2->thread_info.flags);
     }
 
     if (task1->thread_info.cpu != task2->thread_info.cpu) {
-        ovo_info("thread_info.cpu changed from %d to %d\n", task1->thread_info.cpu, task2->thread_info.cpu);
+        wuwa_info("thread_info.cpu changed from %d to %d\n", task1->thread_info.cpu, task2->thread_info.cpu);
     }
 #endif
 
     if (task1->__state != task2->__state) {
-        ovo_info("__state changed from %u to %u\n", task1->__state, task2->__state);
+        wuwa_info("__state changed from %u to %u\n", task1->__state, task2->__state);
     }
 
     if (task1->stack != task2->stack) {
-        ovo_info("stack pointer changed from %p to %p\n", task1->stack, task2->stack);
+        wuwa_info("stack pointer changed from %p to %p\n", task1->stack, task2->stack);
     }
 
     if (task1->flags != task2->flags) {
-        ovo_info("flags changed from %u to %u\n", task1->flags, task2->flags);
+        wuwa_info("flags changed from %u to %u\n", task1->flags, task2->flags);
     }
 
     if (task1->ptrace != task2->ptrace) {
-        ovo_info("ptrace changed from %u to %u\n", task1->ptrace, task2->ptrace);
+        wuwa_info("ptrace changed from %u to %u\n", task1->ptrace, task2->ptrace);
     }
 
     if (task1->pid != task2->pid) {
-        ovo_info("pid changed from %d to %d\n", task1->pid, task2->pid);
+        wuwa_info("pid changed from %d to %d\n", task1->pid, task2->pid);
     }
 
     if (task1->tgid != task2->tgid) {
-        ovo_info("tgid changed from %d to %d\n", task1->tgid, task2->tgid);
+        wuwa_info("tgid changed from %d to %d\n", task1->tgid, task2->tgid);
     }
 #endif
 }
@@ -304,6 +306,43 @@ struct page* vaddr_to_page(struct mm_struct* mm, uintptr_t va) {
 #error "vaddr_to_page failed: pfn_to_page not found"
 #endif
     return pfn_to_page(wuwa_phys_to_pfn(vaddr_to_phy_addr(mm, va)));
+}
+
+int translate_process_vaddr(pid_t pid, uintptr_t vaddr, uintptr_t* paddr_out) {
+    struct pid* pid_struct;
+    struct task_struct* task;
+    struct mm_struct* mm;
+    uintptr_t paddr;
+
+    pid_struct = find_get_pid(pid);
+    if (!pid_struct) {
+        wuwa_warn("failed to find pid_struct: %d\n", pid);
+        return -ESRCH;
+    }
+
+    task = get_pid_task(pid_struct, PIDTYPE_PID);
+    put_pid(pid_struct);
+    if (!task) {
+        wuwa_warn("failed to get task: %d\n", pid);
+        return -ESRCH;
+    }
+
+    mm = get_task_mm(task);
+    put_task_struct(task);
+    if (!mm) {
+        wuwa_warn("failed to get mm: %d\n", pid);
+        return -ESRCH;
+    }
+
+    paddr = vaddr_to_phy_addr(mm, vaddr);
+    mmput(mm);
+
+    if (paddr == 0) {
+        return -EFAULT;
+    }
+
+    *paddr_out = paddr;
+    return 0;
 }
 
 uintptr_t get_module_base(pid_t pid, char* name, int vm_flag) {
@@ -627,9 +666,9 @@ int give_root(void) {
     return 0;
 }
 
-void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t prot) {
+void __iomem* wuwa_ioremap_prot(uintptr_t phys_addr, size_t size, pgprot_t prot) {
     unsigned long offset, vaddr;
-    phys_addr_t last_addr;
+    uintptr_t last_addr;
     struct vm_struct* area;
     int err;
 
@@ -649,11 +688,11 @@ void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t pro
         return NULL;
 
     static int (*my_ioremap_page_range)(unsigned long addr, unsigned long end,
-               phys_addr_t phys_addr, pgprot_t prot) = NULL;
+               uintptr_t phys_addr, pgprot_t prot) = NULL;
     static void (*my_free_vm_area)(struct vm_struct *area) = NULL;
     if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
         my_ioremap_page_range = (int (*)(unsigned long addr, unsigned long end,
-                   phys_addr_t phys_addr, pgprot_t prot))kallsyms_lookup_name_ex("ioremap_page_range");
+                   uintptr_t phys_addr, pgprot_t prot))kallsyms_lookup_name_ex("ioremap_page_range");
         my_free_vm_area = (void (*)(struct vm_struct *area))kallsyms_lookup_name_ex("free_vm_area");
         if (my_ioremap_page_range == NULL || my_free_vm_area == NULL) {
             wuwa_err("cannot find ioremap_page_range or free_vm_area\n");
@@ -699,4 +738,96 @@ void __iomem* wuwa_ioremap_prot(phys_addr_t phys_addr, size_t size, pgprot_t pro
     }
 
     return (void __iomem*)(vaddr + offset);
+}
+
+int cfi_bypass(void) {
+    int ret = 0;
+    unsigned int RET = 0xD65F03C0; // ret指令 (aarch64)
+    unsigned int MOV_X0_1 = 0xD2800020; // mov x0, #1 20 00 80 D2
+
+    unsigned long f__cfi_slowpath = kallsyms_lookup_name_ex("__cfi_slowpath");
+    if (f__cfi_slowpath) {
+        unsigned int* p = (unsigned int*)f__cfi_slowpath;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch __cfi_slowpath successed\n");
+        } else {
+            wuwa_info("__cfi_slowpath already patched\n");
+        }
+    }
+
+    unsigned long f__cfi_slowpath_diag = kallsyms_lookup_name_ex("__cfi_slowpath_diag");
+    if (f__cfi_slowpath_diag) {
+        unsigned int* p = (unsigned int*)f__cfi_slowpath_diag;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch __cfi_slowpath_diag successed\n");
+        } else {
+            wuwa_info("__cfi_slowpath_diag already patched\n");
+        }
+    }
+
+    unsigned long f_cfi_slowpath = kallsyms_lookup_name_ex("_cfi_slowpath");
+    if (f_cfi_slowpath) {
+        unsigned int* p = (unsigned int*)f_cfi_slowpath;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch _cfi_slowpath successed\n");
+        } else {
+            wuwa_info("_cfi_slowpath already patched\n");
+        }
+    }
+
+    unsigned long f__cfi_check_fail = kallsyms_lookup_name_ex("__cfi_check_fail");
+    if (f__cfi_check_fail) {
+        unsigned int* p = (unsigned int*)f__cfi_check_fail;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch __cfi_check_fail successed\n");
+        } else {
+            wuwa_info("__cfi_check_fail already patched\n");
+        }
+    }
+
+    unsigned long f__ubsan_handle_cfi_check_fail_abort = kallsyms_lookup_name_ex("__ubsan_handle_cfi_check_fail_abort");
+    if (f__ubsan_handle_cfi_check_fail_abort) {
+        unsigned int* p = (unsigned int*)f__ubsan_handle_cfi_check_fail_abort;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch __ubsan_handle_cfi_check_fail_abort successed\n");
+        } else {
+            wuwa_info("__ubsan_handle_cfi_check_fail_abort already patched\n");
+        }
+    }
+
+    unsigned long f__ubsan_handle_cfi_check_fail = kallsyms_lookup_name_ex("__ubsan_handle_cfi_check_fail");
+    if (f__ubsan_handle_cfi_check_fail) {
+        unsigned int* p = (unsigned int*)f__ubsan_handle_cfi_check_fail;
+        if(*p != RET) {
+            hook_write_range(p, &RET, INSTRUCTION_SIZE);
+            ret++;
+            wuwa_err("patch __ubsan_handle_cfi_check_fail successed\n");
+        } else {
+            wuwa_info("__ubsan_handle_cfi_check_fail already patched\n");
+        }
+    }
+
+    unsigned long freport_cfi_failure = kallsyms_lookup_name_ex("report_cfi_failure");
+    if (freport_cfi_failure) {
+        unsigned int* p = (unsigned int*)freport_cfi_failure;
+        if(*p != MOV_X0_1) {
+            hook_write_range(p, &MOV_X0_1, INSTRUCTION_SIZE);
+            hook_write_range(p + 1, &RET, INSTRUCTION_SIZE);
+            ret++;
+        } else {
+            wuwa_info("report_cfi_failure already patched\n");
+        }
+    }
+
+    return ret;
 }

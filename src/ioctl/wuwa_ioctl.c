@@ -5,15 +5,14 @@
 #include "wuwa_page_walk.h"
 #include "wuwa_sock.h"
 #include "wuwa_utils.h"
+#include "wuwa_proc_dmabuf.h"
 
 #include <asm/pgtable-prot.h>
 #include <asm/pgtable-types.h>
 #include <asm/pgtable.h>
-#include <linux/dma-buf.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/module.h>
-#include <linux/scatterlist.h>
 #include <linux/slab.h>
 
 #include "wuwa_proc.h"
@@ -21,36 +20,15 @@
 
 int do_vaddr_translate(struct socket* sock, void* arg) {
     struct wuwa_addr_translate_cmd cmd;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    struct pid* pid_struct = find_get_pid(cmd.pid);
-    if (!pid_struct) {
-        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-    put_pid(pid_struct);
-    if (!task) {
-        wuwa_warn("failed to get task: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct mm_struct* mm = get_task_mm(task);
-    put_task_struct(task);
-    if (!mm) {
-        wuwa_warn("failed to get mm: %d\n", cmd.pid);
-        put_task_struct(task);
-        return -ESRCH;
-    }
-
-    cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.va);
-    mmput(mm);
-
-    if (cmd.phy_addr == 0) {
-        return -EFAULT;
+    ret = translate_process_vaddr(cmd.pid, cmd.va, &cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
     }
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
@@ -167,174 +145,13 @@ int do_get_page_info(struct socket* sock, void* arg) {
         return -EFAULT;
     }
 
-    phys_addr_t phy_addr = page_to_phys(page_struct);
+    uintptr_t phy_addr = page_to_phys(page_struct);
     cmd.page.phy_addr = phy_addr;
     cmd.page.flags = page_struct->flags;
     cmd.page._mapcount = page_struct->_mapcount;
     cmd.page._refcount = page_struct->_refcount;
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
-        return -EFAULT;
-    }
-
-    return 0;
-}
-
-static struct sg_table* wuwa_dmabuf_map_dma_buf(struct dma_buf_attachment* attachment, enum dma_data_direction dir) {
-    struct wuwa_dmabuf_private* priv = attachment->dmabuf->priv;
-    return priv->sgt;
-}
-
-static void wuwa_dmabuf_unmap_dma_buf(struct dma_buf_attachment* attachment, struct sg_table* sgt,
-                                      enum dma_data_direction dir) {}
-
-static void wuwa_dmabuf_release(struct dma_buf* dmabuf) {
-    struct wuwa_dmabuf_private* priv = dmabuf->priv;
-    if (!priv) {
-        return;
-    }
-
-    wuwa_info("releasing dmabuf private data\n");
-    if (priv->sgt) {
-        struct scatterlist* sg;
-        int i;
-
-        for_each_sg(priv->sgt->sgl, sg, priv->sgt->nents, i) {
-            struct page* page = sg_page(sg);
-            if (page) {
-                put_page(page);
-            }
-        }
-
-        sg_free_table(priv->sgt);
-        kfree(priv->sgt);
-    }
-
-    kfree(priv);
-}
-
-static int wuwa_dmabuf_begin_cpu_access(struct dma_buf* dmabuf, enum dma_data_direction dir) { return 0; }
-
-static int wuwa_dmabuf_end_cpu_access(struct dma_buf* dmabuf, enum dma_data_direction dir) { return 0; }
-
-static int wuwa_dmabuf_mmap(struct dma_buf* dmabuf, struct vm_area_struct* vma) {
-    struct wuwa_dmabuf_private* priv = dmabuf->priv;
-    struct page* page;
-    unsigned long pfn;
-
-    // make sure there is only one page
-    if (priv->sgt->nents != 1) {
-        wuwa_err("invalid number of sg entries: %d\n", priv->sgt->nents);
-        return -EINVAL;
-    }
-
-    page = sg_page(priv->sgt->sgl);
-    if (!page) {
-        wuwa_err("failed to get page from sg_table\n");
-        return -EINVAL;
-    }
-
-    pfn = page_to_pfn(page);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0))
-    vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
-#else
-    vm_flags_set(vma, vma->vm_flags | VM_DONTEXPAND | VM_DONTDUMP);
-#endif
-    // vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-    // Turning this on will cause the cache and main memory to be out of sync
-
-    wuwa_debug("remapping PFN %lx to vma start %lx\n", pfn, vma->vm_start);
-    return remap_pfn_range(vma, vma->vm_start, pfn, vma->vm_end - vma->vm_start, vma->vm_page_prot);
-}
-
-static const struct dma_buf_ops wuwa_dmabuf_ops = {
-    .map_dma_buf = wuwa_dmabuf_map_dma_buf,
-    .unmap_dma_buf = wuwa_dmabuf_unmap_dma_buf,
-    .release = wuwa_dmabuf_release,
-    .begin_cpu_access = wuwa_dmabuf_begin_cpu_access,
-    .end_cpu_access = wuwa_dmabuf_end_cpu_access,
-    .mmap = wuwa_dmabuf_mmap,
-};
-
-int do_create_dma_buf(struct socket* sock, void* arg) {
-    struct wuwa_dma_buf_create_cmd cmd;
-    struct sg_table* sgt;
-    struct wuwa_dmabuf_private* priv;
-    DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
-
-    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
-        return -EFAULT;
-    }
-
-    struct pid* pid_struct = find_get_pid(cmd.pid);
-    if (!pid_struct) {
-        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-    put_pid(pid_struct);
-    if (!task) {
-        wuwa_warn("failed to get task: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct mm_struct* mm = get_task_mm(task);
-    put_task_struct(task);
-    if (!mm) {
-        wuwa_warn("failed to get mm: %d\n", cmd.pid);
-        put_task_struct(task);
-        return -ESRCH;
-    }
-
-    struct page* page_struct = vaddr_to_page(mm, cmd.va);
-    mmput(mm);
-    if (!page_struct) {
-        return -EFAULT;
-    }
-
-    get_page(page_struct);
-
-    sgt = kmalloc(sizeof(*sgt), GFP_KERNEL);
-    if (!sgt) {
-        return -ENOMEM;
-    }
-
-    if (sg_alloc_table_from_pages(sgt, &page_struct, 1, 0, cmd.size, GFP_KERNEL)) {
-        kfree(sgt);
-        return -ENOMEM;
-    }
-
-    priv = kmalloc(sizeof(*priv), GFP_KERNEL);
-    if (!priv) {
-        sg_free_table(sgt);
-        kfree(sgt);
-        return -ENOMEM;
-    }
-    priv->sgt = sgt;
-
-    exp_info.ops = &wuwa_dmabuf_ops;
-    exp_info.size = cmd.size;
-    exp_info.flags = O_CLOEXEC | O_RDWR;
-    exp_info.priv = priv;
-    exp_info.owner = THIS_MODULE;
-
-    struct dma_buf* dmabuf = dma_buf_export(&exp_info);
-    if (IS_ERR(dmabuf)) {
-        sg_free_table(sgt);
-        kfree(sgt);
-        kfree(priv);
-        return PTR_ERR(dmabuf);
-    }
-
-    cmd.fd = dma_buf_fd(dmabuf, O_CLOEXEC | O_RDWR);
-    if (cmd.fd < 0) {
-        dma_buf_put(dmabuf);
-        return cmd.fd;
-    }
-
-    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
-        dma_buf_put(dmabuf);
         return -EFAULT;
     }
 
@@ -619,7 +436,7 @@ prepare_fault:
 }
 
 #if !defined(ARCH_HAS_VALID_PHYS_ADDR_RANGE) || defined(MODULE)
-static inline int memk_valid_phys_addr_range(phys_addr_t addr, size_t size) { return addr + size <= __pa(high_memory); }
+static inline int memk_valid_phys_addr_range(uintptr_t addr, size_t size) { return addr + size <= __pa(high_memory); }
 #define IS_VALID_PHYS_ADDR_RANGE(x, y) memk_valid_phys_addr_range(x, y)
 #else
 #define IS_VALID_PHYS_ADDR_RANGE(x, y) valid_phys_addr_range(x, y)
@@ -627,54 +444,35 @@ static inline int memk_valid_phys_addr_range(phys_addr_t addr, size_t size) { re
 
 int do_read_physical_memory(struct socket* sock, void __user* arg) {
     struct wuwa_read_physical_memory_cmd cmd;
+    uintptr_t pa;
+    void* mapped;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    struct pid* pid_struct = find_get_pid(cmd.pid);
-    if (!pid_struct) {
-        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-    if (!task) {
-        put_pid(pid_struct);
-        wuwa_warn("failed to get task: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct mm_struct* mm = get_task_mm(task);
-    if (!mm) {
-        wuwa_warn("failed to get mm: %d\n", cmd.pid);
-        put_task_struct(task);
-        put_pid(pid_struct);
-        return -ESRCH;
-    }
-
-    cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.src_va);
-    mmput(mm);
-    put_task_struct(task);
-    put_pid(pid_struct);
-    if (cmd.phy_addr == 0) {
-        return -EFAULT;
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (uintptr_t*)&cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
     }
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    phys_addr_t pa = cmd.phy_addr;
-    if (pa && pfn_valid(__phys_to_pfn(pa)) && IS_VALID_PHYS_ADDR_RANGE(pa, cmd.size)) {
-        void* mapped = phys_to_virt(pa);
-        if (!mapped) {
-            return -ENOMEM;
-        } else if (copy_to_user((void*)cmd.dst_va, mapped, cmd.size)) {
-            return -EACCES;
-        }
-        return 0;
-    } else {
+    pa = cmd.phy_addr;
+    if (!pa || !pfn_valid(__phys_to_pfn(pa)) || !IS_VALID_PHYS_ADDR_RANGE(pa, cmd.size)) {
         return -EFAULT;
+    }
+
+    mapped = phys_to_virt(pa);
+    if (!mapped) {
+        return -ENOMEM;
+    }
+
+    if (copy_to_user((void*)cmd.dst_va, mapped, cmd.size)) {
+        return -EACCES;
     }
 
     return 0;
@@ -719,55 +517,35 @@ int do_find_process(struct socket* sock, void* arg) {
 
 int do_write_physical_memory(struct socket* sock, void __user* arg) {
     struct wuwa_write_physical_memory_cmd cmd;
+    uintptr_t pa;
+    void* mapped;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    struct pid* pid_struct = find_get_pid(cmd.pid);
-    if (!pid_struct) {
-        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-    if (!task) {
-        put_pid(pid_struct);
-        wuwa_warn("failed to get task: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct mm_struct* mm = get_task_mm(task);
-    if (!mm) {
-        wuwa_warn("failed to get mm: %d\n", cmd.pid);
-        put_task_struct(task);
-        put_pid(pid_struct);
-        return -ESRCH;
-    }
-
-    cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.dst_va);
-    mmput(mm);
-    put_task_struct(task);
-    put_pid(pid_struct);
-
-    if (cmd.phy_addr == 0) {
-        return -EFAULT;
+    ret = translate_process_vaddr(cmd.pid, cmd.dst_va, (uintptr_t*)&cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
     }
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    phys_addr_t pa = cmd.phy_addr;
-    if (pa && pfn_valid(__phys_to_pfn(pa)) && IS_VALID_PHYS_ADDR_RANGE(pa, cmd.size)) {
-        void* mapped = phys_to_virt(pa);
-        if (!mapped) {
-            return -ENOMEM;
-        } else if (copy_from_user(mapped, (void*)cmd.src_va, cmd.size)) {
-            return -EACCES;
-        }
-        return 0;
-    } else {
+    pa = cmd.phy_addr;
+    if (!pa || !pfn_valid(__phys_to_pfn(pa)) || !IS_VALID_PHYS_ADDR_RANGE(pa, cmd.size)) {
         return -EFAULT;
+    }
+
+    mapped = phys_to_virt(pa);
+    if (!mapped) {
+        return -ENOMEM;
+    }
+
+    if (copy_from_user(mapped, (void*)cmd.src_va, cmd.size)) {
+        return -EACCES;
     }
 
     return 0;
@@ -787,6 +565,7 @@ int do_is_process_alive(struct socket* sock, void* arg) {
 
     return 0;
 }
+
 int do_hide_process(struct socket* sock, void* arg) {
     struct task_struct* task;
     struct wuwa_hide_proc_cmd cmd;
@@ -802,6 +581,7 @@ int do_hide_process(struct socket* sock, void* arg) {
 
     return -EINVAL;
 }
+
 int do_give_root(struct socket* sock, void* arg) {
     struct wuwa_give_root_cmd cmd;
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
@@ -817,117 +597,176 @@ int do_give_root(struct socket* sock, void* arg) {
     return 0;
 }
 
+/**
+ * convert_wmt_to_pgprot - Convert WMT memory type to pgprot_t
+ * @wmt_type: WMT memory type constant (WMT_NORMAL, WMT_DEVICE_*, etc.)
+ * @prot_out: Output pgprot_t value
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int convert_wmt_to_pgprot(int wmt_type, pgprot_t* prot_out) {
+    switch (wmt_type) {
+        case WMT_NORMAL:
+            *prot_out = __pgprot(PROT_NORMAL);
+            return 0;
+
+        case WMT_NORMAL_TAGGED:
+#if defined(PROT_NORMAL_TAGGED)
+            *prot_out = __pgprot(PROT_NORMAL_TAGGED);
+            return 0;
+#else
+            wuwa_warn("PROT_NORMAL_TAGGED not defined on this kernel\n");
+            return -EINVAL;
+#endif
+
+        case WMT_NORMAL_NC:
+#if defined(PROT_NORMAL_NC)
+            *prot_out = __pgprot(PROT_NORMAL_NC);
+            return 0;
+#else
+            wuwa_warn("PROT_NORMAL_NC not defined on this kernel\n");
+            return -EINVAL;
+#endif
+
+        case WMT_NORMAL_WT:
+#if defined(PROT_NORMAL_WT)
+            *prot_out = __pgprot(PROT_NORMAL_WT);
+            return 0;
+#else
+            wuwa_warn("PROT_NORMAL_WT not defined on this kernel\n");
+            return -EINVAL;
+#endif
+
+        case WMT_DEVICE_nGnRnE:
+#if defined(PROT_DEVICE_nGnRnE)
+            *prot_out = __pgprot(PROT_DEVICE_nGnRnE);
+            return 0;
+#else
+            wuwa_warn("PROT_DEVICE_nGnRnE not defined on this kernel\n");
+            return -EINVAL;
+#endif
+
+        case WMT_DEVICE_nGnRE:
+#if defined(PROT_DEVICE_nGnRE)
+            *prot_out = __pgprot(PROT_DEVICE_nGnRE);
+            return 0;
+#else
+            wuwa_warn("PROT_DEVICE_nGnRE not defined on this kernel\n");
+            return -EINVAL;
+#endif
+
+        default:
+            wuwa_warn("invalid prot: %d\n", wmt_type);
+            return -EINVAL;
+    }
+}
+
 int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
     struct wuwa_read_physical_memory_ioremap_cmd cmd;
     pgprot_t prot;
+    uintptr_t pa;
+    void* mapped;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-//     if (cmd.size == 0 || cmd.size > PAGE_SIZE) {
-//         return -EFAULT;
-//     }
-//
-//     if (cmd.prot < WMT_NORMAL || cmd.prot > WMT_NORMAL_iNC_oWB) {
-//         return -EINVAL;
-//     }
-//
-//     if (cmd.prot == WMT_NORMAL) {
-//         prot = __pgprot(PROT_NORMAL);
-//     } else if (cmd.prot == WMT_NORMAL_TAGGED) {
-// #if defined(PROT_NORMAL_TAGGED)
-//         prot = __pgprot(PROT_NORMAL_TAGGED);
-// #else
-//         wuwa_warn("PROT_NORMAL_TAGGED not defined on this kernel\n");
-//         return -EINVAL;
-// #endif
-//     } else if (cmd.prot == WMT_NORMAL_NC) {
-// #if defined(PROT_NORMAL_NC)
-//         prot = __pgprot(PROT_NORMAL_NC);
-// #else
-//         wuwa_warn("PROT_NORMAL_NC not defined on this kernel\n");
-//         return -EINVAL;
-// #endif
-//     } else if (cmd.prot == WMT_NORMAL_WT) {
-// #if defined(PROT_NORMAL_WT)
-//         prot = __pgprot(PROT_NORMAL_WT);
-// #else
-//         wuwa_warn("PROT_NORMAL_WT not defined on this kernel\n");
-//         return -EINVAL;
-// #endif
-//     } else if (cmd.prot == WMT_DEVICE_nGnRnE) {
-// #if defined(PROT_DEVICE_nGnRnE)
-//         prot = __pgprot(PROT_DEVICE_nGnRnE);
-// #else
-//         wuwa_warn("PROT_DEVICE_nGnRnE not defined on this kernel\n");
-//         return -EINVAL;
-// #endif
-//     } else if (cmd.prot == WMT_DEVICE_nGnRE) {
-// #if defined(PROT_DEVICE_nGnRE)
-//         prot = __pgprot(PROT_DEVICE_nGnRE);
-// #else
-//         wuwa_warn("PROT_DEVICE_nGnRE not defined on this kernel\n");
-//         return -EINVAL;
-// #endif
-//     } else {
-//         wuwa_warn("invalid prot: %d\n", cmd.prot);
-//         return -EINVAL;
-//     }
-//
-//     struct pid* pid_struct = find_get_pid(cmd.pid);
-//     if (!pid_struct) {
-//         wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-//         return -ESRCH;
-//     }
-//
-//     struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-//     if (!task) {
-//         put_pid(pid_struct);
-//         wuwa_warn("failed to get task: %d\n", cmd.pid);
-//         return -ESRCH;
-//     }
-//
-//     struct mm_struct* mm = get_task_mm(task);
-//     if (!mm) {
-//         wuwa_warn("failed to get mm: %d\n", cmd.pid);
-//         put_task_struct(task);
-//         put_pid(pid_struct);
-//         return -ESRCH;
-//     }
-//
-//     cmd.phy_addr = vaddr_to_phy_addr(mm, cmd.src_va);
-//     mmput(mm);
-//     put_task_struct(task);
-//     put_pid(pid_struct);
-//
-//     if (cmd.phy_addr == 0) {
-//         return -EFAULT;
-//     }
-//
-//     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
-//         return -EFAULT;
-//     }
-//
-//     phys_addr_t pa = cmd.phy_addr;
-//     unsigned long pfn = __phys_to_pfn(pa);
-//     if (pa && pfn_valid(pfn)) {
-//         void* mapped = wuwa_ioremap_prot(pa, cmd.size, prot);
-//         if (copy_to_user((void*)cmd.dst_va, mapped, cmd.size)) {
-//             iounmap(mapped);
-//             return -EACCES;
-//         }
-//         iounmap(mapped);
-//         return 0;
-//     }
+    // Validate size
+    if (cmd.size == 0 || cmd.size > PAGE_SIZE) {
+        return -EFAULT;
+    }
 
-    return -EFAULT;
+    // Validate and convert memory type
+    if (cmd.prot < WMT_NORMAL || cmd.prot > WMT_NORMAL_iNC_oWB) {
+        return -EINVAL;
+    }
+
+    ret = convert_wmt_to_pgprot(cmd.prot, &prot);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Translate virtual address to physical
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, &cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Return physical address to userspace
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    // Map and read physical memory
+    pa = cmd.phy_addr;
+    if (!pa || !pfn_valid(__phys_to_pfn(pa))) {
+        return -EFAULT;
+    }
+
+    mapped = wuwa_ioremap_prot(pa, cmd.size, prot);
+    if (!mapped) {
+        wuwa_err("failed to ioremap physical address 0x%lx\n", pa);
+        return -ENOMEM;
+    }
+
+    ret = copy_to_user((void*)cmd.dst_va, mapped, cmd.size);
+    iounmap(mapped);
+
+    return ret ? -EACCES : 0;
 }
 
 int do_write_physical_memory_ioremap(struct socket* sock, void* arg) {
     struct wuwa_write_physical_memory_ioremap_cmd cmd;
+    pgprot_t prot;
+    uintptr_t pa;
+    void* mapped;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    return 0;
+    // Validate size
+    if (cmd.size == 0 || cmd.size > PAGE_SIZE) {
+        return -EFAULT;
+    }
+
+    // Validate and convert memory type
+    if (cmd.prot < WMT_NORMAL || cmd.prot > WMT_NORMAL_iNC_oWB) {
+        return -EINVAL;
+    }
+
+    ret = convert_wmt_to_pgprot(cmd.prot, &prot);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Translate virtual address to physical
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, &cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Return physical address to userspace
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    // Map and read physical memory
+    pa = cmd.phy_addr;
+    if (!pa || !pfn_valid(__phys_to_pfn(pa))) {
+        return -EFAULT;
+    }
+
+    mapped = wuwa_ioremap_prot(pa, cmd.size, prot);
+    if (!mapped) {
+        wuwa_err("failed to ioremap physical address 0x%lx\n", pa);
+        return -ENOMEM;
+    }
+
+    ret = copy_from_user(mapped, (void*)cmd.dst_va, cmd.size);
+    iounmap(mapped);
+
+    return ret ? -EACCES : 0;
 }

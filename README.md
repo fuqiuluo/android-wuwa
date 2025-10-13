@@ -1,26 +1,41 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fuqiuluo/android-wuwa)
 
-Join Group: 943577597
+> Join OICQ Group: 943577597
+> 
+> 
+> 
+> Kernel Driver Development Kit: [Ylarod/ddk](https://github.com/Ylarod/ddk)
 
 # Features
 
-- [x] Custom protocol family for user-space (EL0) 
-- [x] Virtual ⇄ physical address translation for any process
-- [x] Physical page descriptor lookup (flags, ref_count, and friends)
-- [x] One-step mapping of a process’s virtual memory into a DMA-BUF fd
-- [x] Page-table injections that bypass VMA
-- [x] Dump a process’s memory map straight to dmesg for easy inspection
-- [ ] Low-level page-table permission tweaks plus VMA permission masking 
-- [x] Arbitrary physical memory read/write 
-- [ ] Memory-scan traps for stealthy injection protection 
-- [ ] Cross-process memory remap to build shared memory
-- [ ] EL1 channel based on exception vectors
-- [x] Kprobe blacklist bypass/disable
-- [x] Determine if the process is alive
-- [x] Get Module Base Addr
-- [x] Get process PID
-- [ ] Hide Process
-- [x] Give Root
+## Kernel Protection Bypass
+- [x] **CFI Bypass** - Automatically patch kernel CFI check functions to disable Control Flow Integrity protection
+- [x] **Kprobe Blacklist Disable** - Clear kprobe blacklist to allow hooking protected kernel functions (kernel 6.1+)
+
+## Address Translation
+- [x] **Virtual Address Translation** - Software page table walking for virtual to physical address translation
+- [x] **Hardware Address Translation** - Using ARM64 AT instruction for faster and more accurate translation
+- [x] **PTE Direct Mapping** - Create mappings directly in page tables bypassing VMA, supports stealth mode
+- [x] **Page Table Walk** - Traverse complete process page tables and dump to dmesg
+
+## Memory Access
+- [x] **Physical Memory R/W** - Direct access via phys_to_virt, up to 50MB per operation
+- [x] **ioremap R/W** - Support multiple memory types (Normal/Device/Write-Through, etc.)
+
+## Process Management
+- [x] **Find Process** - Locate process PID by name
+- [x] **Liveness Check** - Check if process is alive
+- [x] **Privilege Escalation** - Elevate current process to root
+- [x] **Get Module Base** - Query module load address in target process
+- [x] **Hide Process** - Set process invisible flag (partial implementation)
+- [x] **Hide Module** - Hide kernel module from system
+
+## Advanced Features
+- [x] **DMA Buffer Export** - Export process memory as dma-buf fd for zero-copy sharing
+- [x] **Page Info Query** - Retrieve page flags/refcount/mapcount information
+- [x] **Debug Info** - Get kernel structures like TTBR0/task_struct/mm_struct/pgd
+- [x] **Custom Protocol Family** - Socket-based userspace communication interface
+- [ ] **Remote Thread Creation** - Create new thread in target process (not implemented yet)
 
 # How to Connect to the WuWa Driver
 
