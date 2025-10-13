@@ -6,6 +6,10 @@ lkm-devtools.toml
 /android-kernel
 /build
 lkm-devtools
+
+.devcontainer/.env
+
+# 不开源的文件
 wuwa_cproc.c
 wuwa_cproc.h
 wuwa_core.c
@@ -18,6 +22,7 @@ wuwa_msm.h
 wuwa_msm.c
 settings.json
 
+# AI 相关文件
 CLAUDE.md
 
 # 构建垃圾
@@ -33,3 +38,4 @@ CLAUDE.md
 android-wuwa.mod.c
 android-wuwa.lds
 android-wuwa.ko
+
