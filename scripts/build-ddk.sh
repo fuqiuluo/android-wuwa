@@ -5,9 +5,9 @@
 
 set -e
 
-# Default target
+# Default values
 DEFAULT_TARGET="android12-5.10"
-TARGET="${1:-$DEFAULT_TARGET}"
+MODULE_NAME="android-wuwa"
 
 # Detect system language
 if [[ "$LANG" =~ ^zh ]]; then
@@ -21,6 +21,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Print colored message
@@ -36,10 +37,98 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_success() {
+    echo -e "${CYAN}[SUCCESS]${NC} $1"
+}
+
 # Localized messages
 msg() {
     local key="$1"
     case "$key" in
+        "usage_header")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "使用方法"
+            else
+                echo "Usage"
+            fi
+            ;;
+        "description")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "使用 DDK 构建、清理和配置 android-wuwa 内核模块"
+            else
+                echo "Build, clean, and configure android-wuwa kernel module using DDK"
+            fi
+            ;;
+        "commands")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "命令"
+            else
+                echo "Commands"
+            fi
+            ;;
+        "build_desc")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "构建内核模块"
+            else
+                echo "Build kernel module"
+            fi
+            ;;
+        "clean_desc")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "清理构建产物"
+            else
+                echo "Clean build artifacts"
+            fi
+            ;;
+        "compdb_desc")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "生成 compile_commands.json（用于 IDE 支持）"
+            else
+                echo "Generate compile_commands.json (for IDE support)"
+            fi
+            ;;
+        "config_desc")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "配置编译选项开关"
+            else
+                echo "Configure build feature flags"
+            fi
+            ;;
+        "list_desc")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "列出已安装的 DDK 镜像"
+            else
+                echo "List installed DDK images"
+            fi
+            ;;
+        "options")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "选项"
+            else
+                echo "Options"
+            fi
+            ;;
+        "target_opt")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "DDK 目标（默认：android12-5.10）"
+            else
+                echo "DDK target (default: android12-5.10)"
+            fi
+            ;;
+        "strip_opt")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "裁剪调试符号以减小文件大小"
+            else
+                echo "Strip debug symbols to reduce file size"
+            fi
+            ;;
+        "examples")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "示例"
+            else
+                echo "Examples"
+            fi
+            ;;
         "ddk_not_installed")
             if [[ "$LANG_MODE" == "zh" ]]; then
                 echo "ddk 未安装！"
@@ -131,6 +220,13 @@ msg() {
                 echo "Module"
             fi
             ;;
+        "strip")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "裁剪"
+            else
+                echo "Strip"
+            fi
+            ;;
         "checking_image")
             if [[ "$LANG_MODE" == "zh" ]]; then
                 echo "检查 DDK 镜像："
@@ -143,6 +239,13 @@ msg() {
                 echo "已安装的镜像："
             else
                 echo "Installed images:"
+            fi
+            ;;
+        "no_images")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "无已安装的镜像"
+            else
+                echo "No installed images"
             fi
             ;;
         "image_not_found")
@@ -173,6 +276,13 @@ msg() {
                 echo "Cleaning previous build artifacts..."
             fi
             ;;
+        "clean_complete")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "清理完成！"
+            else
+                echo "Clean completed!"
+            fi
+            ;;
         "building")
             if [[ "$LANG_MODE" == "zh" ]]; then
                 echo "正在构建内核模块..."
@@ -199,6 +309,20 @@ msg() {
                 echo "模块大小"
             else
                 echo "Module size"
+            fi
+            ;;
+        "stripping")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "正在裁剪调试符号..."
+            else
+                echo "Stripping debug symbols..."
+            fi
+            ;;
+        "size_after_strip")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "裁剪后大小"
+            else
+                echo "Size after stripping"
             fi
             ;;
         "module_info")
@@ -257,6 +381,83 @@ msg() {
                 echo "Check the build log above for details."
             fi
             ;;
+        "generating_compdb")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "正在生成 compile_commands.json..."
+            else
+                echo "Generating compile_commands.json..."
+            fi
+            ;;
+        "compdb_success")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "compile_commands.json 生成成功！"
+            else
+                echo "compile_commands.json generated successfully!"
+            fi
+            ;;
+        "compdb_failed")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "生成 compile_commands.json 失败！"
+            else
+                echo "Failed to generate compile_commands.json!"
+            fi
+            ;;
+        "config_title")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "配置编译选项"
+            else
+                echo "Configure Build Features"
+            fi
+            ;;
+        "current_config")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "当前配置："
+            else
+                echo "Current configuration:"
+            fi
+            ;;
+        "enable")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "启用"
+            else
+                echo "Enabled"
+            fi
+            ;;
+        "disable")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "禁用"
+            else
+                echo "Disabled"
+            fi
+            ;;
+        "toggle_prompt")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "输入编号切换开关，输入 's' 保存并退出，输入 'q' 不保存退出："
+            else
+                echo "Enter number to toggle, 's' to save and exit, 'q' to quit without saving:"
+            fi
+            ;;
+        "invalid_choice")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "无效的选择"
+            else
+                echo "Invalid choice"
+            fi
+            ;;
+        "config_saved")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "配置已保存！"
+            else
+                echo "Configuration saved!"
+            fi
+            ;;
+        "config_cancelled")
+            if [[ "$LANG_MODE" == "zh" ]]; then
+                echo "配置取消，未保存更改。"
+            else
+                echo "Configuration cancelled, no changes saved."
+            fi
+            ;;
     esac
 }
 
@@ -292,7 +493,7 @@ check_docker_permission() {
         echo ""
         echo "$(msg "solutions")"
         echo "  1. $(msg "run_with_sudo")"
-        echo "     sudo $0 $TARGET"
+        echo "     sudo $0 $*"
         echo ""
         echo "  2. $(msg "add_to_docker_group")"
         echo "     sudo usermod -aG docker \$USER"
@@ -305,60 +506,127 @@ check_docker_permission() {
 # Display usage
 usage() {
     cat << EOF
-Usage: $0 [TARGET]
+$(msg "usage_header"): $0 <command> [options]
 
-Build android-wuwa kernel module using DDK (Kernel Driver Development Kit)
+$(msg "description")
 
-Arguments:
-  TARGET    Kernel version target (default: $DEFAULT_TARGET)
-            Examples: android12-5.10, android13-5.15, android14-6.1, android16-6.12
-            Full list: https://github.com/Ylarod/ddk/pkgs/container/ddk/versions
+$(msg "commands"):
+  build [target]    $(msg "build_desc")
+  clean [target]    $(msg "clean_desc")
+  compdb [target]   $(msg "compdb_desc")
+  config            $(msg "config_desc")
+  list              $(msg "list_desc")
 
-Examples:
-  $0                      # Build with default target ($DEFAULT_TARGET)
-  $0 android14-6.1        # Build for Android 14 with kernel 6.1
-  $0 android16-6.12       # Build for Android 16 with kernel 6.12
+$(msg "options"):
+  -t, --target      $(msg "target_opt")
+  -s, --strip       $(msg "strip_opt")
+  -h, --help        Show this help message
 
-Note: This script requires Docker. On some systems, you may need to run with sudo.
+$(msg "examples"):
+  $0 build                          # Build with default target
+  $0 build android14-6.1            # Build for specific target
+  $0 build -t android14-6.1 --strip # Build and strip debug symbols
+  $0 clean android12-5.10           # Clean specific target
+  $0 compdb                         # Generate compile_commands.json
+  $0 config                         # Configure build features
+  $0 list                           # List installed DDK images
+
+Available targets: https://github.com/Ylarod/ddk/pkgs/container/ddk/versions
 
 EOF
 }
 
-# Main build function
-main() {
-    # Parse help flag
-    if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
-        usage
-        exit 0
+# Strip ko file
+strip_module() {
+    local module_file="$1"
+
+    if [ ! -f "$module_file" ]; then
+        print_error "$(msg "module_not_found")"
+        return 1
     fi
+
+    print_info "$(msg "stripping")"
+    local size_before=$(du -h "$module_file" | cut -f1)
+
+    # Get absolute path for docker volume mount
+    local abs_path=$(realpath "$module_file")
+    local dir_path=$(dirname "$abs_path")
+    local file_name=$(basename "$abs_path")
+
+    # Get the DDK image name
+    local image_name="ghcr.io/ylarod/ddk:$TARGET"
+
+    # Check if image exists
+    if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "$image_name"; then
+        # Fallback to host strip if available
+        if command -v llvm-strip &> /dev/null; then
+            llvm-strip -d "$module_file"
+        elif command -v strip &> /dev/null; then
+            strip -d "$module_file"
+        else
+            print_warn "strip/llvm-strip not found, skipping..."
+            return 0
+        fi
+    else
+        # Use docker run to execute strip in container
+        docker run --rm -v "$dir_path:/work" "$image_name" llvm-strip -d "/work/$file_name" 2>/dev/null || \
+        docker run --rm -v "$dir_path:/work" "$image_name" strip -d "/work/$file_name" 2>/dev/null || {
+            # Fallback to host strip
+            if command -v llvm-strip &> /dev/null; then
+                llvm-strip -d "$module_file"
+            elif command -v strip &> /dev/null; then
+                strip -d "$module_file"
+            else
+                print_warn "strip/llvm-strip not found, skipping..."
+                return 0
+            fi
+        }
+    fi
+
+    local size_after=$(du -h "$module_file" | cut -f1)
+    print_success "$(msg "size_after_strip"): $size_before -> $size_after"
+}
+
+# Build module
+cmd_build() {
+    local TARGET="$DEFAULT_TARGET"
+    local STRIP_MODULE=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -t|--target)
+                TARGET="$2"
+                shift 2
+                ;;
+            -s|--strip)
+                STRIP_MODULE=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                TARGET="$1"
+                shift
+                ;;
+        esac
+    done
 
     print_info "DDK Build Script for android-wuwa"
     echo ""
 
-    # Check if ddk is installed
+    # Check prerequisites
     check_ddk_installed
-
-    # Check docker permissions
     check_docker_permission
 
     # Display build configuration
     print_info "$(msg "build_config")"
     echo "  $(msg "target"): $TARGET"
-    echo "  $(msg "module"): android-wuwa.ko"
+    echo "  $(msg "module"): $MODULE_NAME.ko"
+    echo "  $(msg "strip"): $([ "$STRIP_MODULE" = true ] && echo "$(msg "enable")" || echo "$(msg "disable")")"
     echo ""
-
-    # List installed images
-    print_info "$(msg "installed_images")"
-    if ddk list 2>/dev/null; then
-        echo ""
-    else
-        if [[ "$LANG_MODE" == "zh" ]]; then
-            echo "  无已安装的镜像"
-        else
-            echo "  No installed images"
-        fi
-        echo ""
-    fi
 
     # Pull image if needed
     print_info "$(msg "checking_image") $TARGET"
@@ -383,20 +651,25 @@ main() {
 
     if ddk build --target "$TARGET"; then
         echo ""
-        print_info "$(msg "build_success")"
-        print_info "$(msg "output"): android-wuwa.ko"
+        print_success "$(msg "build_success")"
+        print_info "$(msg "output"): $MODULE_NAME.ko"
         echo ""
 
         # Check if the module was built
-        if [ -f "android-wuwa.ko" ]; then
-            MODULE_SIZE=$(du -h android-wuwa.ko | cut -f1)
+        if [ -f "$MODULE_NAME.ko" ]; then
+            MODULE_SIZE=$(du -h "$MODULE_NAME.ko" | cut -f1)
             print_info "$(msg "module_size"): $MODULE_SIZE"
+
+            # Strip if requested
+            if [ "$STRIP_MODULE" = true ]; then
+                strip_module "$MODULE_NAME.ko"
+            fi
 
             # Display module info
             if command -v modinfo &> /dev/null; then
                 echo ""
                 print_info "$(msg "module_info")"
-                modinfo android-wuwa.ko 2>/dev/null || true
+                modinfo "$MODULE_NAME.ko" 2>/dev/null || true
             fi
         else
             print_warn "$(msg "module_not_found")"
@@ -414,6 +687,93 @@ main() {
         echo "$(msg "check_log")"
         exit 1
     fi
+}
+
+# Clean build artifacts
+cmd_clean() {
+    local TARGET="${1:-$DEFAULT_TARGET}"
+
+    check_ddk_installed
+    check_docker_permission
+
+    print_info "$(msg "cleaning")"
+    echo "  $(msg "target"): $TARGET"
+    echo ""
+
+    ddk clean --target "$TARGET"
+
+    print_success "$(msg "clean_complete")"
+}
+
+# Generate compile_commands.json
+cmd_compdb() {
+    local TARGET="${1:-$DEFAULT_TARGET}"
+
+    check_ddk_installed
+    check_docker_permission
+
+    print_info "$(msg "generating_compdb")"
+    echo "  $(msg "target"): $TARGET"
+    echo ""
+
+    if ddk shell --target "$TARGET" -- make compdb; then
+        print_success "$(msg "compdb_success")"
+    else
+        print_error "$(msg "compdb_failed")"
+        exit 1
+    fi
+}
+
+# List installed images
+cmd_list() {
+    check_ddk_installed
+    check_docker_permission
+
+    print_info "$(msg "installed_images")"
+    echo ""
+
+    if ddk list 2>/dev/null; then
+        echo ""
+    else
+        echo "  $(msg "no_images")"
+        echo ""
+    fi
+}
+
+# Main entry point
+main() {
+    if [ $# -eq 0 ]; then
+        usage
+        exit 0
+    fi
+
+    local command="$1"
+    shift
+
+    case "$command" in
+        build)
+            cmd_build "$@"
+            ;;
+        clean)
+            cmd_clean "$@"
+            ;;
+        compdb)
+            cmd_compdb "$@"
+            ;;
+        list)
+            cmd_list "$@"
+            ;;
+        -h|--help|help)
+            usage
+            exit 0
+            ;;
+        *)
+            print_error "Unknown command: $command"
+            echo ""
+            usage
+            exit 1
+            ;;
+    esac
 }
 
 # Run main function

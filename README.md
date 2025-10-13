@@ -57,14 +57,32 @@ sudo chmod +x /usr/local/bin/ddk
 
 ### Build with DDK
 
-```bash
-# Use the provided build script (supports Chinese/English based on system locale)
-./scripts/build-ddk.sh [target]
+The build script supports multiple commands and options (supports Chinese/English based on system locale):
 
-# Examples:
-./scripts/build-ddk.sh                    # Build with default target (android12-5.10)
-./scripts/build-ddk.sh android14-6.1      # Build for Android 14 with kernel 6.1
-./scripts/build-ddk.sh android16-6.12     # Build for Android 16 with kernel 6.12
+**Commands:**
+```bash
+./scripts/build-ddk.sh build [target]    # Build kernel module
+./scripts/build-ddk.sh clean [target]    # Clean build artifacts
+./scripts/build-ddk.sh compdb [target]   # Generate compile_commands.json for IDE
+./scripts/build-ddk.sh list              # List installed DDK images
+```
+
+**Build Examples:**
+```bash
+# Build with default target (android12-5.10)
+./scripts/build-ddk.sh build
+
+# Build for specific target
+./scripts/build-ddk.sh build android14-6.1
+
+# Build with stripped debug symbols (smaller file size)
+./scripts/build-ddk.sh build -t android14-6.1 --strip
+
+# Clean build artifacts
+./scripts/build-ddk.sh clean android12-5.10
+
+# Generate compile_commands.json for IDE support
+./scripts/build-ddk.sh compdb
 ```
 
 Available targets: Check [DDK Container Versions](https://github.com/Ylarod/ddk/pkgs/container/ddk/versions)
