@@ -41,10 +41,10 @@ ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-v
 ccflags-y += -DBUILD_NO_CFI
 
 all:
-	make -C $(KDIR) M=$(PWD) modules
+	make -C $(KDIR) M=$(MDIR) modules
 
 clean:
-	make -C $(KDIR) M=$(PWD) clean
+	make -C $(KDIR) M=$(MDIR) clean
     
 compdb:
 	python3 $(MDIR)/.vscode/generate_compdb.py -O $(KDIR) $(MDIR)

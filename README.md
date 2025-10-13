@@ -37,6 +37,65 @@
 - [x] **Custom Protocol Family** - Socket-based userspace communication interface
 - [ ] **Remote Thread Creation** - Create new thread in target process (not implemented yet)
 
+# Build Instructions
+
+## Option 1: Use DDK (Recommended)
+
+[DDK (Kernel Driver Development Kit)](https://github.com/Ylarod/ddk) provides a containerized build environment with pre-configured kernel sources.
+
+### Prerequisites
+
+- Docker installed and running
+- DDK tool installed
+
+### Install DDK
+
+```bash
+sudo curl -fsSL https://raw.githubusercontent.com/Ylarod/ddk/main/scripts/ddk -o /usr/local/bin/ddk
+sudo chmod +x /usr/local/bin/ddk
+```
+
+### Build with DDK
+
+```bash
+# Use the provided build script (supports Chinese/English based on system locale)
+./scripts/build-ddk.sh [target]
+
+# Examples:
+./scripts/build-ddk.sh                    # Build with default target (android12-5.10)
+./scripts/build-ddk.sh android14-6.1      # Build for Android 14 with kernel 6.1
+./scripts/build-ddk.sh android16-6.12     # Build for Android 16 with kernel 6.12
+```
+
+Available targets: Check [DDK Container Versions](https://github.com/Ylarod/ddk/pkgs/container/ddk/versions)
+
+**Note**: On some systems, Docker requires root privileges. If you encounter permission errors, run the script with `sudo`.
+
+## Option 2: Download from CI
+
+Pre-built kernel modules are available from GitHub Actions CI builds:
+
+1. Go to [Actions tab](../../actions)
+2. Select the latest successful workflow run
+3. Download the build artifact for your kernel version
+
+## Option 3: Manual Build
+
+If you have your own Android kernel source tree:
+
+```bash
+# Set kernel source path
+export KERNEL_SRC=/path/to/android/kernel/source
+
+# Build the module
+make
+
+# Clean build artifacts
+make clean
+```
+
+**Note**: Manual builds are only tested on kernel 6.1. No guarantees on other versions.
+
 # How to Connect to the WuWa Driver
 
 [Click me](docs/FindDriver.md) for the connection guide.
