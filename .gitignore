@@ -19,3 +19,16 @@ wuwa_msm.c
 settings.json
 
 CLAUDE.md
+
+# 构建垃圾
+*.o.cmd
+*.ko.cmd
+*.mod.cmd
+*.cmd
+*.order
+*.symvers
+*.o
+*.mod
+
+android-wuwa.mod.c
+android-wuwa.lds
