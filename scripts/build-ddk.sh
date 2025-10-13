@@ -716,7 +716,23 @@ cmd_compdb() {
     echo "  $(msg "target"): $TARGET"
     echo ""
 
-    if ddk shell --target "$TARGET" -- make compdb; then
+    # Get the DDK image name
+    local image_name="ghcr.io/ylarod/ddk:$TARGET"
+
+    # Check if image exists, pull if needed
+    if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "$image_name"; then
+        print_warn "$(msg "image_not_found")"
+        ddk pull "$TARGET" || {
+            print_error "$(msg "pull_failed") $TARGET"
+            exit 1
+        }
+    fi
+
+    # Get current directory
+    local current_dir=$(pwd)
+
+    # Run make compdb in container
+    if docker run --rm -v "$current_dir:/build" -w /build "$image_name" make compdb KDIR=\$KERNEL_SRC; then
         print_success "$(msg "compdb_success")"
     else
         print_error "$(msg "compdb_failed")"
