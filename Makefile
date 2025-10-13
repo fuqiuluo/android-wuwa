@@ -7,7 +7,7 @@ android-wuwa-y := \
     src/utils/wuwa_utils.o \
     src/ioctl/wuwa_ioctl.o \
     src/mm/wuwa_page_walk.o \
-    src/mm/wuwa_dmabuf.o \
+    src/mm/wuwa_proc_dmabuf.o \
     src/hook/wuwa_safe_signal.o \
     src/hook/wuwa_d0_mm_fault.o \
     src/proc/wuwa_proc.o \

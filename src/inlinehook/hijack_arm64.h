@@ -5,7 +5,6 @@
 #define HIJACK_INST_NUM (6)
 #define HIJACK_SIZE (INSTRUCTION_SIZE * HIJACK_INST_NUM)
 #define HOOK_TARGET_OFFSET (0)
-#define INSTRUCTION_SIZE 4
 
 int init_arch(void);
 

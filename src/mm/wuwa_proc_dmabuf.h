@@ -1,10 +1,10 @@
-#ifndef WUWA_DMABUF_H
-#define WUWA_DMABUF_H
+#ifndef WUWA_PROC_DMABUF_H
+#define WUWA_PROC_DMABUF_H
 
 #include <linux/socket.h>
 
 /**
- * do_create_dma_buf - Create a DMA buffer from a virtual address
+ * do_create_proc_dma_buf - Create a DMA buffer from a process virtual address
  * @sock: Socket for session management
  * @arg: User-space pointer to wuwa_dma_buf_create_cmd
  *
@@ -19,6 +19,6 @@
  *
  * Return: 0 on success, negative error code on failure
  */
-int do_create_dma_buf(struct socket* sock, void* arg);
+int do_create_proc_dma_buf(struct socket* sock, void* arg);
 
-#endif /* WUWA_DMABUF_H */
+#endif /* WUWA_PROC_DMABUF_H */

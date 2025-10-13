@@ -5,7 +5,7 @@
 #include "wuwa_page_walk.h"
 #include "wuwa_sock.h"
 #include "wuwa_utils.h"
-#include "wuwa_dmabuf.h"
+#include "wuwa_proc_dmabuf.h"
 
 #include <asm/pgtable-prot.h>
 #include <asm/pgtable-types.h>
@@ -688,7 +688,7 @@ int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
     }
 
     // Translate virtual address to physical
-    ret = translate_process_vaddr(cmd.pid, cmd.src_va, (uintptr_t*)&cmd.phy_addr);
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, &cmd.phy_addr);
     if (ret < 0) {
         return ret;
     }
@@ -718,9 +718,55 @@ int do_read_physical_memory_ioremap(struct socket* sock, void* arg) {
 
 int do_write_physical_memory_ioremap(struct socket* sock, void* arg) {
     struct wuwa_write_physical_memory_ioremap_cmd cmd;
+    pgprot_t prot;
+    uintptr_t pa;
+    void* mapped;
+    int ret;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    return 0;
+    // Validate size
+    if (cmd.size == 0 || cmd.size > PAGE_SIZE) {
+        return -EFAULT;
+    }
+
+    // Validate and convert memory type
+    if (cmd.prot < WMT_NORMAL || cmd.prot > WMT_NORMAL_iNC_oWB) {
+        return -EINVAL;
+    }
+
+    ret = convert_wmt_to_pgprot(cmd.prot, &prot);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Translate virtual address to physical
+    ret = translate_process_vaddr(cmd.pid, cmd.src_va, &cmd.phy_addr);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Return physical address to userspace
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    // Map and read physical memory
+    pa = cmd.phy_addr;
+    if (!pa || !pfn_valid(__phys_to_pfn(pa))) {
+        return -EFAULT;
+    }
+
+    mapped = wuwa_ioremap_prot(pa, cmd.size, prot);
+    if (!mapped) {
+        wuwa_err("failed to ioremap physical address 0x%lx\n", pa);
+        return -ENOMEM;
+    }
+
+    ret = copy_from_user(mapped, (void*)cmd.dst_va, cmd.size);
+    iounmap(mapped);
+
+    return ret ? -EACCES : 0;
 }

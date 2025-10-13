@@ -183,7 +183,7 @@ int do_vaddr_translate(struct socket* sock, void __user* arg);
 int do_debug_info(struct socket* sock, void __user* arg);
 int do_at_s1e0r(struct socket* sock, void __user* arg);
 int do_get_page_info(struct socket* sock, void __user* arg);
-int do_create_dma_buf(struct socket* sock, void __user* arg);
+int do_create_proc_dma_buf(struct socket* sock, void __user* arg);
 int do_pte_mapping(struct socket* sock, void __user* arg);
 int do_page_table_walk(struct socket* sock, void __user* arg);
 int do_copy_process(struct socket* sock, void __user* arg);
@@ -207,7 +207,7 @@ static const struct ioctl_cmd_map {
     {.cmd = WUWA_IOCTL_DEBUG_INFO, .handler = do_debug_info},
     {.cmd = WUWA_IOCTL_AT_S1E0R, .handler = do_at_s1e0r}, /* Reusing the same handler for AT VA */
     {.cmd = WUWA_IOCTL_PAGE_INFO, .handler = do_get_page_info},
-    {.cmd = WUWA_IOCTL_DMA_BUF_CREATE, .handler = do_create_dma_buf},
+    {.cmd = WUWA_IOCTL_DMA_BUF_CREATE, .handler = do_create_proc_dma_buf},
     {.cmd = WUWA_IOCTL_PTE_MAPPING, .handler = do_pte_mapping},
     {.cmd = WUWA_IOCTL_PAGE_TABLE_WALK, .handler = do_page_table_walk},
     {.cmd = WUWA_IOCTL_COPY_PROCESS, .handler = do_copy_process},

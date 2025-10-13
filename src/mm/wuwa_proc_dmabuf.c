@@ -1,4 +1,4 @@
-#include "wuwa_dmabuf.h"
+#include "wuwa_proc_dmabuf.h"
 
 #include <linux/dma-buf.h>
 #include <linux/kernel.h>
@@ -160,7 +160,7 @@ static const struct dma_buf_ops wuwa_dmabuf_ops = {
 };
 
 /**
- * do_create_dma_buf - Create a DMA buffer from a virtual address
+ * do_create_proc_dma_buf - Create a DMA buffer from a process virtual address
  * @sock: Socket for session management
  * @arg: User-space pointer to wuwa_dma_buf_create_cmd
  *
@@ -180,7 +180,7 @@ static const struct dma_buf_ops wuwa_dmabuf_ops = {
  *
  * Return: 0 on success, negative error code on failure
  */
-int do_create_dma_buf(struct socket* sock, void* arg) {
+int do_create_proc_dma_buf(struct socket* sock, void* arg) {
     struct wuwa_dma_buf_create_cmd cmd;
     struct sg_table* sgt;
     struct wuwa_dmabuf_private* priv;
