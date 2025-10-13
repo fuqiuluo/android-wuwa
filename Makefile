@@ -16,8 +16,13 @@ android-wuwa-y := \
 
 src := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 
-$(info WUWA_SRC_DIR: $(src))
-$(info WUWA_OBJ_DIR: $(obj))
+KDIR := $(KERNEL_SRC)
+MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+
+$(info -- KDIR: $(KDIR))
+$(info -- MDIR: $(MDIR))
+$(info -- WUWA_SRC_DIR: $(src))
+$(info -- WUWA_OBJ_DIR: $(obj))
 
 ccflags-y += -I$(src)/src/core -I$(src)/src/net -I$(src)/src/ioctl -I$(src)/src/mm
 ccflags-y += -I$(src)/src/inlinehook -I$(src)/src/hook -I$(src)/src/proc -I$(src)/src/utils
@@ -40,5 +45,8 @@ all:
 
 clean:
 	make -C $(KDIR) M=$(PWD) clean
+    
+compdb:
+	python3 $(MDIR)/.vscode/generate_compdb.py -O $(KDIR) $(MDIR)
 
 .PHONY: all clean
