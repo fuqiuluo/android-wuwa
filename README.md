@@ -27,7 +27,7 @@
 - [x] **Liveness Check** - Check if process is alive
 - [x] **Privilege Escalation** - Elevate current process to root
 - [x] **Get Module Base** - Query module load address in target process
-- [x] **Hide Process** - Set process invisible flag (partial implementation)
+- [ ] **Hide Process** - Set process invisible flag
 - [x] **Hide Module** - Hide kernel module from system
 
 ## Advanced Features
