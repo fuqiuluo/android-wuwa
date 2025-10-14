@@ -118,12 +118,6 @@ make clean
 
 [Click me](docs/FindDriver.md) for the connection guide.
 
-# Heads-up
-
-- Tested only on my device running kernel 6.1.
-- No guarantees on other versions; treat this as a proof of concept.
-- Everything not explicitly marked “planned” has been run and verified on my setup—use at your own risk.
-
 # Thanks
 
 - [Diamorphine](https://github.com/m0nad/Diamorphine)
