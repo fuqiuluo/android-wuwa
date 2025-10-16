@@ -142,7 +142,7 @@ bindproc->write(addr, buf, sizeof(buf));
 - `WMT_DEVICE_nGnRE` - Device memory
 - `WMT_DEVICE_GRE` - Device memory (relaxed ordering)
 
-**Performance**: BindProc caches ioremap'd pages on kernel side, making sequential reads ~10x faster than repeated `read_physical_memory()` calls. Limits: 64KB per operation, 16 pages max per call.
+Limits: 64KB per operation, 16 pages max per call.
 
 #### Unreal Engine Helpers
 
