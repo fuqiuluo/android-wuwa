@@ -95,6 +95,6 @@ module_exit(wuwa_exit);
 MODULE_AUTHOR("fuqiuluo");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("https://github.com/fuqiuluo/android-wuwa");
-MODULE_VERSION("1.0.4");
+MODULE_VERSION("1.0.5");
 
 MODULE_IMPORT_NS(DMA_BUF);

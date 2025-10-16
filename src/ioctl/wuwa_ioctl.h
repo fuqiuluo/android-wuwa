@@ -165,16 +165,27 @@ struct wuwa_bind_proc_cmd {
 #define WUWA_IOCTL_PTE_MAPPING _IOWR('W', 6, struct wuwa_pte_mapping_cmd)
 /* IOCTL command for page table walk */
 #define WUWA_IOCTL_PAGE_TABLE_WALK _IOWR('W', 7, struct wuwa_page_table_walk_cmd)
+/* IOCTL command for copying a process */
 #define WUWA_IOCTL_COPY_PROCESS _IOWR('W', 8, struct wuwa_copy_process_cmd)
+/* IOCTL command for reading physical memory */
 #define WUWA_IOCTL_READ_MEMORY _IOWR('W', 9, struct wuwa_read_physical_memory_cmd)
+/* IOCTL command for getting module base address */
 #define WUWA_IOCTL_GET_MODULE_BASE _IOWR('W', 10, struct wuwa_get_module_base_cmd)
+/* IOCTL command for finding a process by name */
 #define WUWA_IOCTL_FIND_PROCESS _IOWR('W', 11, struct wuwa_find_proc_cmd)
+/* IOCTL command for writing physical memory */
 #define WUWA_IOCTL_WRITE_MEMORY _IOWR('W', 12, struct wuwa_write_physical_memory_cmd)
+/* IOCTL command for checking if a process is alive */
 #define WUWA_IOCTL_IS_PROCESS_ALIVE _IOWR('W', 13, struct wuwa_is_proc_alive_cmd)
+/* IOCTL command for hiding/unhiding a process */
 #define WUWA_IOCTL_HIDE_PROCESS _IOWR('W', 14, struct wuwa_hide_proc_cmd)
+/* IOCTL command for giving root privileges to the current process */
 #define WUWA_IOCTL_GIVE_ROOT _IOWR('W', 15, struct wuwa_give_root_cmd)
+/* IOCTL command for reading physical memory using ioremap */
 #define WUWA_IOCTL_READ_MEMORY_IOREMAP _IOWR('W', 16, struct wuwa_read_physical_memory_ioremap_cmd)
+/* IOCTL command for writing physical memory using ioremap */
 #define WUWA_IOCTL_WRITE_MEMORY_IOREMAP _IOWR('W', 17, struct wuwa_write_physical_memory_ioremap_cmd)
+/* IOCTL command for binding a process to an Anno file descriptor */
 #define WUWA_IOCTL_BIND_PROC _IOWR('W', 18, struct wuwa_bind_proc_cmd)
 
 int do_vaddr_translate(struct socket* sock, void __user* arg);
