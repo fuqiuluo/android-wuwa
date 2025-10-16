@@ -72,7 +72,11 @@ struct wuwa_pte_mapping_cmd {
 };
 
 struct wuwa_page_table_walk_cmd {
-    pid_t pid;
+    pid_t pid; /* Input: Process ID */
+    u64 total_pte_count; /* Output: Total number of PTEs (Page Table Entries) */
+    u64 present_pte_count; /* Output: Number of present (mapped) PTEs */
+    u64 pmd_huge_count; /* Output: Number of PMD huge pages (2MB pages) */
+    u64 pud_huge_count; /* Output: Number of PUD huge pages (1GB pages) */
 };
 
 struct wuwa_copy_process_cmd {
@@ -151,6 +155,21 @@ struct wuwa_bind_proc_cmd {
     int fd; /* Output: Anno File Descriptor */
 };
 
+struct wuwa_list_processes_cmd {
+    u8* __user bitmap; /* Input: User-space bitmap buffer (at least 8192 bytes for PID 0-65535) */
+    size_t bitmap_size; /* Input: Size of bitmap in bytes (must be at least 8192) */
+    size_t process_count; /* Output: Total number of processes (number of set bits) */
+};
+
+struct wuwa_get_proc_info_cmd {
+    pid_t pid; /* Input: Process ID to query */
+    pid_t tgid; /* Output: Thread group ID (process group leader) */
+    char name[256]; /* Output: Process name (comm) */
+    uid_t uid; /* Output: User ID */
+    pid_t ppid; /* Output: Parent process ID */
+    int prio; /* Output: Process priority */
+};
+
 /* IOCTL command for virtual to physical address translation */
 #define WUWA_IOCTL_ADDR_TRANSLATE _IOWR('W', 1, struct wuwa_addr_translate_cmd)
 /* IOCTL command for debugging information */
@@ -187,6 +206,10 @@ struct wuwa_bind_proc_cmd {
 #define WUWA_IOCTL_WRITE_MEMORY_IOREMAP _IOWR('W', 17, struct wuwa_write_physical_memory_ioremap_cmd)
 /* IOCTL command for binding a process to an Anno file descriptor */
 #define WUWA_IOCTL_BIND_PROC _IOWR('W', 18, struct wuwa_bind_proc_cmd)
+/* IOCTL command for listing all processes as a bitmap */
+#define WUWA_IOCTL_LIST_PROCESSES _IOWR('W', 19, struct wuwa_list_processes_cmd)
+/* IOCTL command for getting process information by PID */
+#define WUWA_IOCTL_GET_PROC_INFO _IOWR('W', 20, struct wuwa_get_proc_info_cmd)
 
 int do_vaddr_translate(struct socket* sock, void __user* arg);
 int do_debug_info(struct socket* sock, void __user* arg);
@@ -205,6 +228,8 @@ int do_hide_process(struct socket* sock, void __user* arg);
 int do_give_root(struct socket* sock, void __user* arg);
 int do_read_physical_memory_ioremap(struct socket* sock, void __user* arg);
 int do_write_physical_memory_ioremap(struct socket* sock, void __user* arg);
+int do_list_processes(struct socket* sock, void __user* arg);
+int do_get_process_info(struct socket* sock, void __user* arg);
 
 typedef int (*ioctl_handler_t)(struct socket* sock, void __user* arg);
 
@@ -230,6 +255,8 @@ static const struct ioctl_cmd_map {
     {.cmd = WUWA_IOCTL_READ_MEMORY_IOREMAP, .handler = do_read_physical_memory_ioremap},
     {.cmd = WUWA_IOCTL_WRITE_MEMORY_IOREMAP, .handler = do_write_physical_memory_ioremap},
     {.cmd = WUWA_IOCTL_BIND_PROC, .handler = do_bind_proc},
+    {.cmd = WUWA_IOCTL_LIST_PROCESSES, .handler = do_list_processes},
+    {.cmd = WUWA_IOCTL_GET_PROC_INFO, .handler = do_get_process_info},
     {.cmd = 0, .handler = NULL} /* Sentinel to mark end of array */
 };
 

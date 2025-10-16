@@ -38,7 +38,6 @@ ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-v
 # 编译时启用 HIDE_SIGNAL 功能
 #ccflags-y += -DBUILD_HIDE_SIGNAL
 #ccflags-y += -DPTE_WALK
-# 编译时启用 NO_CFI 功能
 ccflags-y += -DBUILD_NO_CFI
 
 all:

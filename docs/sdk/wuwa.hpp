@@ -36,6 +36,7 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <algorithm>
 
 namespace wuwa {
 
@@ -58,6 +59,8 @@ struct WuwaGiveRootCmd;
 struct WuwaReadPhysicalMemoryIoremapCmd;
 struct WuwaWritePhysicalMemoryIoremapCmd;
 struct WuwaBindProcCmd;
+struct WuwaListProcessesCmd;
+struct WuwaGetProcInfoCmd;
 
 // IOCTL command definitions (magic number 'W')
 // Must use actual struct types for correct command number calculation
@@ -79,6 +82,8 @@ struct WuwaBindProcCmd;
 #define WUWA_IOCTL_READ_MEMORY_IOREMAP _IOWR('W', 16, WuwaReadPhysicalMemoryIoremapCmd)
 #define WUWA_IOCTL_WRITE_MEMORY_IOREMAP _IOWR('W', 17, WuwaWritePhysicalMemoryIoremapCmd)
 #define WUWA_IOCTL_BIND_PROC _IOWR('W', 18, WuwaBindProcCmd)
+#define WUWA_IOCTL_LIST_PROCESSES _IOWR('W', 19, WuwaListProcessesCmd)
+#define WUWA_IOCTL_GET_PROC_INFO _IOWR('W', 20, WuwaGetProcInfoCmd)
 
 // Command structures matching kernel definitions
 
@@ -138,6 +143,10 @@ struct WuwaPteMappingCmd {
 
 struct WuwaPageTableWalkCmd {
     pid_t pid;
+    uint64_t total_pte_count;       // Total number of PTEs
+    uint64_t present_pte_count;     // Number of present (mapped) PTEs
+    uint64_t pmd_huge_count;        // Number of PMD huge pages (2MB pages)
+    uint64_t pud_huge_count;        // Number of PUD huge pages (1GB pages)
 };
 
 struct WuwaCopyProcessCmd {
@@ -213,6 +222,76 @@ struct WuwaWritePhysicalMemoryIoremapCmd {
 struct WuwaBindProcCmd {
     pid_t pid;
     int fd;
+};
+
+struct WuwaListProcessesCmd {
+    uint8_t* bitmap;
+    size_t bitmap_size;
+    size_t process_count;
+};
+
+struct WuwaGetProcInfoCmd {
+    pid_t pid;
+    pid_t tgid;
+    char name[256];
+    uid_t uid;
+    pid_t ppid;
+    int prio;
+};
+
+/**
+ * Process information with memory usage statistics
+ *
+ * Combines basic process information with page table statistics to provide
+ * a complete view of process memory usage.
+ */
+struct ProcessInfoWithMemory {
+    WuwaGetProcInfoCmd info;        // Basic process information
+    uint64_t memory_size;            // Total memory size in bytes
+    uint64_t present_pte_count;      // Number of present (mapped) base pages
+    uint64_t pmd_huge_count;         // Number of PMD huge pages
+    uint64_t pud_huge_count;         // Number of PUD huge pages
+
+    /**
+     * Calculate total memory size from page statistics
+     *
+     * Note: Huge page sizes depend on base page size:
+     * - 4KB base:  PMD=2MB,   PUD=1GB
+     * - 16KB base: PMD=32MB,  PUD may not be supported
+     * - 64KB base: PMD=512MB, PUD may not be supported
+     *
+     * This function assumes standard ARM64 configuration with 4KB base pages.
+     * For accurate results on systems with different page sizes, huge page
+     * sizes should be obtained from /proc or kernel configuration.
+     */
+    static uint64_t calculate_memory_size(uint64_t present_pte, uint64_t pmd_huge, uint64_t pud_huge) {
+        const long page_size = getpagesize();  // Get system base page size
+
+        // Calculate huge page sizes based on base page size
+        // These are standard ratios for ARM64 with 4KB pages
+        uint64_t pmd_size;
+        uint64_t pud_size;
+
+        if (page_size == 4096) {
+            // 4KB base page
+            pmd_size = 2ULL * 1024 * 1024;      // 2MB
+            pud_size = 1024ULL * 1024 * 1024;   // 1GB
+        } else if (page_size == 16384) {
+            // 16KB base page
+            pmd_size = 32ULL * 1024 * 1024;     // 32MB
+            pud_size = 0;                        // Usually not supported
+        } else if (page_size == 65536) {
+            // 64KB base page
+            pmd_size = 512ULL * 1024 * 1024;    // 512MB
+            pud_size = 0;                        // Usually not supported
+        } else {
+            // Unknown page size, assume 4KB standard
+            pmd_size = 2ULL * 1024 * 1024;
+            pud_size = 1024ULL * 1024 * 1024;
+        }
+
+        return (present_pte * page_size) + (pmd_huge * pmd_size) + (pud_huge * pud_size);
+    }
 };
 
 // Memory type constants for ioremap operations
@@ -502,11 +581,20 @@ public:
     }
 
     /**
-     * Dump complete page table to dmesg
+     * Walk page tables and collect statistics
+     *
+     * Traverses the page tables for the target process and collects statistics
+     * about page table entries including total PTEs, present PTEs, and huge pages.
+     *
+     * @param pid Target process ID
+     * @return WuwaPageTableWalkCmd with statistics on success, nullopt on failure
      */
-    bool page_table_walk(pid_t pid) {
-        WuwaPageTableWalkCmd cmd = {pid};
-        return do_ioctl(WUWA_IOCTL_PAGE_TABLE_WALK, &cmd);
+    std::optional<WuwaPageTableWalkCmd> page_table_walk(pid_t pid) {
+        WuwaPageTableWalkCmd cmd = {pid, 0, 0, 0, 0};
+        if (!do_ioctl(WUWA_IOCTL_PAGE_TABLE_WALK, &cmd)) {
+            return std::nullopt;
+        }
+        return cmd;
     }
 
     /**
@@ -721,6 +809,103 @@ public:
         return do_ioctl(WUWA_IOCTL_COPY_PROCESS, &cmd);
     }
 
+    /**
+     * List all processes in the system using bitmap
+     *
+     * Returns a vector of PIDs for all running processes. Uses an efficient
+     * bitmap representation (8KB) to retrieve process list from kernel.
+     *
+     * @return Vector of PIDs on success, empty vector on failure
+     */
+    std::vector<pid_t> list_processes() {
+        constexpr size_t BITMAP_SIZE = 8192;  // Support PID 0-65535
+        std::vector<uint8_t> bitmap(BITMAP_SIZE, 0);
+
+        WuwaListProcessesCmd cmd = {
+            bitmap.data(),
+            BITMAP_SIZE,
+            0
+        };
+
+        if (!do_ioctl(WUWA_IOCTL_LIST_PROCESSES, &cmd)) {
+            return {};
+        }
+
+        // Parse bitmap and extract PIDs
+        std::vector<pid_t> pids;
+        pids.reserve(cmd.process_count);
+
+        for (size_t pid = 0; pid < BITMAP_SIZE * 8; ++pid) {
+            size_t byte_idx = pid / 8;
+            size_t bit_idx = pid % 8;
+
+            if (bitmap[byte_idx] & (1 << bit_idx)) {
+                pids.push_back(static_cast<pid_t>(pid));
+            }
+        }
+
+        return pids;
+    }
+
+    /**
+     * Get detailed process information by PID
+     *
+     * Retrieves process information including name, TGID, UID, PPID, and priority.
+     *
+     * @param pid Process ID to query
+     * @return WuwaGetProcInfoCmd struct on success, nullopt on failure
+     */
+    std::optional<WuwaGetProcInfoCmd> get_process_info(pid_t pid) {
+        WuwaGetProcInfoCmd cmd = {};
+        cmd.pid = pid;
+
+        if (!do_ioctl(WUWA_IOCTL_GET_PROC_INFO, &cmd)) {
+            return std::nullopt;
+        }
+
+        return cmd;
+    }
+
+    /**
+     * List all processes with detailed information
+     *
+     * This is an improved version that retrieves both PIDs and detailed information
+     * in a single call. Automatically filters out processes with empty names.
+     * Results are sorted by priority (lower priority value = higher priority = appears first).
+     *
+     * @return Vector of process information structs sorted by priority, empty vector on failure
+     */
+    std::vector<WuwaGetProcInfoCmd> list_processes_with_info() {
+        std::vector<WuwaGetProcInfoCmd> result;
+
+        // Get all PIDs using bitmap
+        auto pids = list_processes();
+        if (pids.empty()) {
+            return result;
+        }
+
+        // Reserve space for efficiency
+        result.reserve(pids.size());
+
+        // Fetch detailed info for each PID
+        for (pid_t pid : pids) {
+            auto info = get_process_info(pid);
+            if (info) {
+                // Skip processes with empty names
+                if (info->name[0] != '\0') {
+                    result.push_back(*info);
+                }
+            }
+        }
+
+        // Sort by priority (lower value = higher priority)
+        std::sort(result.begin(), result.end(),
+                  [](const WuwaGetProcInfoCmd& a, const WuwaGetProcInfoCmd& b) {
+                      return a.prio < b.prio;
+                  });
+
+        return result;
+    }
 private:
     int sock_fd_;
 

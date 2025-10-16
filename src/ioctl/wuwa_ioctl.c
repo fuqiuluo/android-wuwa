@@ -335,34 +335,42 @@ out_mm:
 
 int do_page_table_walk(struct socket* sock, void* arg) {
     struct wuwa_page_table_walk_cmd cmd;
+    struct page_walk_stats stats;
+
     if (copy_from_user(&cmd, arg, sizeof(cmd))) {
         return -EFAULT;
     }
 
-    struct pid* pid_struct = find_get_pid(cmd.pid);
-    if (!pid_struct) {
-        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
-        return -ESRCH;
-    }
-
-    struct task_struct* task = get_pid_task(pid_struct, PIDTYPE_PID);
-    put_pid(pid_struct);
+    struct task_struct* task = get_target_task(cmd.pid);
     if (!task) {
-        wuwa_warn("failed to get task: %d\n", cmd.pid);
         return -ESRCH;
     }
 
     struct mm_struct* mm = get_task_mm(task);
-    put_task_struct(task);
     if (!mm) {
-        wuwa_warn("failed to get mm: %d\n", cmd.pid);
         put_task_struct(task);
         return -ESRCH;
     }
 
-    traverse_page_tables(mm);
+    // Traverse page tables and collect statistics
+    traverse_page_tables(mm, &stats);
+
+    // Copy statistics to command structure
+    cmd.total_pte_count = stats.total_pte_count;
+    cmd.present_pte_count = stats.present_pte_count;
+    cmd.pmd_huge_count = stats.pmd_huge_count;
+    cmd.pud_huge_count = stats.pud_huge_count;
 
     mmput(mm);
+    put_task_struct(task);
+
+    // Copy result back to userspace
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    wuwa_info("page table walk for pid %d: total_pte=%llu, present_pte=%llu, pmd_huge=%llu, pud_huge=%llu\n",
+              cmd.pid, cmd.total_pte_count, cmd.present_pte_count, cmd.pmd_huge_count, cmd.pud_huge_count);
 
     return 0;
 }
@@ -705,4 +713,168 @@ int do_write_physical_memory_ioremap(struct socket* sock, void* arg) {
     iounmap(mapped);
 
     return ret ? -EACCES : 0;
+}
+
+int do_list_processes(struct socket* sock, void __user* arg) {
+    struct wuwa_list_processes_cmd cmd;
+    struct task_struct* task;
+    u8* kernel_bitmap;
+    size_t process_count = 0;
+    int ret = 0;
+
+    // Copy command from userspace
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    // Validate bitmap size (must be at least 8192 bytes for PID 0-65535)
+    if (cmd.bitmap_size < 8192) {
+        wuwa_warn("bitmap size too small: %zu (minimum 8192)\n", cmd.bitmap_size);
+        return -EINVAL;
+    }
+
+    // Allocate kernel bitmap buffer
+    kernel_bitmap = kzalloc(cmd.bitmap_size, GFP_KERNEL);
+    if (!kernel_bitmap) {
+        wuwa_err("failed to allocate kernel bitmap\n");
+        return -ENOMEM;
+    }
+
+    // Iterate through all processes and set corresponding bits
+    rcu_read_lock();
+    for_each_process(task) {
+        pid_t pid = task->pid;
+        
+        // Check if PID is within bitmap range
+        if (pid >= 0 && pid < (cmd.bitmap_size * 8)) {
+            size_t byte_index = pid / 8;
+            size_t bit_index = pid % 8;
+            
+            // Set the bit
+            kernel_bitmap[byte_index] |= (1 << bit_index);
+            process_count++;
+        }
+    }
+    rcu_read_unlock();
+
+    // Copy bitmap to userspace
+    if (copy_to_user(cmd.bitmap, kernel_bitmap, cmd.bitmap_size)) {
+        ret = -EFAULT;
+        goto out_free;
+    }
+
+    // Update process count and copy back to userspace
+    cmd.process_count = process_count;
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        ret = -EFAULT;
+        goto out_free;
+    }
+
+    wuwa_info("listed %zu processes in bitmap\n", process_count);
+
+out_free:
+    kfree(kernel_bitmap);
+    return ret;
+}
+
+int do_get_process_info(struct socket* sock, void __user* arg) {
+    struct wuwa_get_proc_info_cmd cmd;
+    struct pid* pid_struct;
+    struct task_struct* task;
+    char cmdline[256];
+    int ret = 0;
+
+    // Copy command from userspace
+    if (copy_from_user(&cmd, arg, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    // Find process by PID
+    pid_struct = find_get_pid(cmd.pid);
+    if (!pid_struct) {
+        wuwa_warn("failed to find pid_struct: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+
+    task = get_pid_task(pid_struct, PIDTYPE_PID);
+    put_pid(pid_struct);
+    if (!task) {
+        wuwa_warn("failed to get task: %d\n", cmd.pid);
+        return -ESRCH;
+    }
+
+    // Extract basic process information
+    cmd.tgid = task->tgid;
+    cmd.uid = task->cred->uid.val;
+    cmd.ppid = task->real_parent ? task->real_parent->pid : 0;
+    cmd.prio = task->prio;
+
+    // Try to get full command line
+    cmdline[0] = '\0';
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+    static int (*my_get_cmdline)(struct task_struct* task, char* buffer, int buflen) = NULL;
+    if (my_get_cmdline == NULL) {
+        my_get_cmdline = (void*)kallsyms_lookup_name_ex("get_cmdline");
+    }
+
+    if (my_get_cmdline != NULL && task->mm != NULL) {
+        ret = my_get_cmdline(task, cmdline, sizeof(cmdline));
+    } else {
+        ret = -1;
+    }
+#else
+    // Use fallback for older kernels
+    if (task->mm != NULL) {
+        struct mm_struct* mm = get_task_mm(task);
+        if (mm) {
+            unsigned long arg_start, arg_end;
+            unsigned int len;
+
+            spin_lock(&mm->arg_lock);
+            arg_start = mm->arg_start;
+            arg_end = mm->arg_end;
+            spin_unlock(&mm->arg_lock);
+
+            len = arg_end - arg_start;
+            if (len > sizeof(cmdline) - 1)
+                len = sizeof(cmdline) - 1;
+
+            ret = access_process_vm(task, arg_start, cmdline, len, FOLL_FORCE);
+            mmput(mm);
+        } else {
+            ret = -1;
+        }
+    } else {
+        ret = -1;
+    }
+#endif
+
+    // Fallback to task->comm if cmdline retrieval failed
+    if (ret < 0 || cmdline[0] == '\0') {
+        strncpy(cmd.name, task->comm, sizeof(cmd.name) - 1);
+    } else {
+        // Extract program name (first part before space)
+        char* space = strchr(cmdline, ' ');
+        if (space) *space = '\0';
+
+        // Extract filename from path
+        char* slash = strrchr(cmdline, '/');
+        char* prog_name = slash ? (slash + 1) : cmdline;
+
+        strncpy(cmd.name, prog_name, sizeof(cmd.name) - 1);
+    }
+    cmd.name[sizeof(cmd.name) - 1] = '\0';
+
+    put_task_struct(task);
+
+    // Copy result back to userspace
+    if (copy_to_user(arg, &cmd, sizeof(cmd))) {
+        return -EFAULT;
+    }
+
+    wuwa_info("retrieved info for process %d: tgid=%d, name=%s, uid=%d, ppid=%d, prio=%d\n",
+              cmd.pid, cmd.tgid, cmd.name, cmd.uid, cmd.ppid, cmd.prio);
+
+    return 0;
 }

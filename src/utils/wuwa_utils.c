@@ -9,6 +9,7 @@
 #include <linux/vmalloc.h>
 
 #include "hijack_arm64.h"
+#include "linux/pid.h"
 
 #ifdef CONFIG_CFI_CLANG
 #define NO_CFI __nocfi

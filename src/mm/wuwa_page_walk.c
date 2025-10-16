@@ -23,7 +23,7 @@ static void print_merged_region(unsigned long* start, unsigned long* end) {
 
 // Walk the Page Table Entries (PTEs)
 static void walk_pte_level(pmd_t* pmd, unsigned long addr, unsigned long end, unsigned long* region_start,
-                           unsigned long* region_end) {
+                           unsigned long* region_end, struct page_walk_stats* stats) {
 #if defined(PTE_WALK)
     pte_t *ptep, pte;
     unsigned long current_addr;
@@ -33,7 +33,7 @@ static void walk_pte_level(pmd_t* pmd, unsigned long addr, unsigned long end, un
     if (end < pte_end)
         pte_end = end;
 
-    ptep = pte_offset_map(pmd, addr);
+    ptep = pte_offset_kernel(pmd, addr);
     ptep = NULL;
     if (!ptep) {
         return;
@@ -41,7 +41,13 @@ static void walk_pte_level(pmd_t* pmd, unsigned long addr, unsigned long end, un
 
     for (current_addr = addr; current_addr < pte_end; current_addr += PAGE_SIZE) {
         pte = *ptep;
+        if (stats) {
+            stats->total_pte_count++;
+        }
         if (pte_present(pte)) {
+            if (stats) {
+                stats->present_pte_count++;
+            }
             // Found a mapped page
             if (*region_start != -1UL && current_addr != *region_end + PAGE_SIZE) {
                 print_merged_region(region_start, region_end);
@@ -66,7 +72,7 @@ static void walk_pte_level(pmd_t* pmd, unsigned long addr, unsigned long end, un
 
 // Walk the Page Middle Directories (PMDs)
 static void walk_pmd_level(pud_t* pud, unsigned long addr, unsigned long end, unsigned long* region_start,
-                           unsigned long* region_end) {
+                           unsigned long* region_end, struct page_walk_stats* stats) {
     pmd_t* pmd;
     unsigned long next;
 
@@ -76,6 +82,9 @@ static void walk_pmd_level(pud_t* pud, unsigned long addr, unsigned long end, un
         next = pmd_addr_end(addr, end);
         if (pmd_present(*pmd) && !pmd_none(*pmd)) {
             if (pmd_huge(*pmd)) {
+                if (stats) {
+                    stats->pmd_huge_count++;
+                }
                 if (*region_start != -1UL && addr != *region_end + PAGE_SIZE) {
                     print_merged_region(region_start, region_end);
                 }
@@ -84,7 +93,7 @@ static void walk_pmd_level(pud_t* pud, unsigned long addr, unsigned long end, un
                 }
                 *region_end = next - PAGE_SIZE;
             } else {
-                walk_pte_level(pmd, addr, next, region_start, region_end);
+                walk_pte_level(pmd, addr, next, region_start, region_end, stats);
             }
         } else {
             print_merged_region(region_start, region_end);
@@ -96,7 +105,7 @@ static void walk_pmd_level(pud_t* pud, unsigned long addr, unsigned long end, un
 
 // Walk the Page Upper Directories (PUDs)
 static void walk_pud_level(p4d_t* p4d, unsigned long addr, unsigned long end, unsigned long* region_start,
-                           unsigned long* region_end) {
+                           unsigned long* region_end, struct page_walk_stats* stats) {
     pud_t* pud;
     unsigned long next;
 
@@ -106,6 +115,9 @@ static void walk_pud_level(p4d_t* p4d, unsigned long addr, unsigned long end, un
         next = pud_addr_end(addr, end);
         if (pud_present(*pud) && !pud_none(*pud)) {
             if (pud_huge(*pud)) {
+                if (stats) {
+                    stats->pud_huge_count++;
+                }
                 if (*region_start != -1UL && addr != *region_end + PAGE_SIZE) {
                     print_merged_region(region_start, region_end);
                 }
@@ -114,7 +126,7 @@ static void walk_pud_level(p4d_t* p4d, unsigned long addr, unsigned long end, un
                 }
                 *region_end = next - PAGE_SIZE;
             } else {
-                walk_pmd_level(pud, addr, next, region_start, region_end);
+                walk_pmd_level(pud, addr, next, region_start, region_end, stats);
             }
         } else {
             print_merged_region(region_start, region_end);
@@ -126,7 +138,7 @@ static void walk_pud_level(p4d_t* p4d, unsigned long addr, unsigned long end, un
 
 // Walk the Page 4th-level Directories (P4Ds)
 static void walk_p4d_level(pgd_t* pgd, unsigned long addr, unsigned long end, unsigned long* region_start,
-                           unsigned long* region_end) {
+                           unsigned long* region_end, struct page_walk_stats* stats) {
     p4d_t* p4d;
     unsigned long next;
 
@@ -135,7 +147,7 @@ static void walk_p4d_level(pgd_t* pgd, unsigned long addr, unsigned long end, un
     do {
         next = p4d_addr_end(addr, end);
         if (p4d_present(*p4d) && !p4d_none(*p4d)) {
-            walk_pud_level(p4d, addr, next, region_start, region_end);
+            walk_pud_level(p4d, addr, next, region_start, region_end, stats);
         } else {
             print_merged_region(region_start, region_end);
         }
@@ -144,7 +156,7 @@ static void walk_p4d_level(pgd_t* pgd, unsigned long addr, unsigned long end, un
     } while (addr < end);
 }
 
-void traverse_page_tables(struct mm_struct* mm) {
+void traverse_page_tables(struct mm_struct* mm, struct page_walk_stats* stats) {
     unsigned long addr = 0;
     unsigned long region_start = -1UL, region_end = -1UL;
     pgd_t* pgd;
@@ -154,6 +166,14 @@ void traverse_page_tables(struct mm_struct* mm) {
         return;
     }
 
+    // Initialize stats if provided
+    if (stats) {
+        stats->total_pte_count = 0;
+        stats->present_pte_count = 0;
+        stats->pmd_huge_count = 0;
+        stats->pud_huge_count = 0;
+    }
+
     MM_READ_LOCK(mm);
 
     pgd = mm->pgd;
@@ -161,7 +181,7 @@ void traverse_page_tables(struct mm_struct* mm) {
     do {
         next = pgd_addr_end(addr, TASK_SIZE);
         if (pgd_present(*pgd) && !pgd_none(*pgd)) {
-            walk_p4d_level(pgd, addr, next, &region_start, &region_end);
+            walk_p4d_level(pgd, addr, next, &region_start, &region_end, stats);
         } else {
             print_merged_region(&region_start, &region_end);
         }
