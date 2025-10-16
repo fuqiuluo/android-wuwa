@@ -13,6 +13,10 @@
 #include "wuwa_page_walk.h"
 #include "wuwa_utils.h"
 
+struct wuwa_dmabuf_private {
+    struct sg_table* sgt;
+};
+
 /**
  * wuwa_dmabuf_map_dma_buf - Map DMA buffer for device access
  * @attachment: DMA buffer attachment

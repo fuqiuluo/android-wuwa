@@ -54,8 +54,4 @@ struct wuwa_sock {
     struct karray_list* used_pages;
 };
 
-struct wuwa_dmabuf_private {
-    struct sg_table* sgt;
-};
-
 #endif /* WUWA_COMMON_H */

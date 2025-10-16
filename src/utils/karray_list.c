@@ -83,6 +83,10 @@ void* arraylist_remove(struct karray_list* list, size_t index) {
         return element;
 }
 
+void arraylist_clear(struct karray_list* list) {
+    list->size = 0;
+}
+
 void arraylist_destroy(struct karray_list* list) {
     if (list->data)
         kfree(list->data);

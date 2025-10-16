@@ -30,7 +30,7 @@ static int wuwa_release(struct socket* sock) {
                 __free_page(page);
             }
         }
-        ovo_info("free %lu used pages\n", ws->used_pages->size);
+        wuwa_info("free %lu used pages\n", ws->used_pages->size);
         arraylist_destroy(ws->used_pages);
     }
 

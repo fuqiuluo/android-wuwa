@@ -22,6 +22,15 @@
 #define MM_WRITE_UNLOCK(mm) up_write(&(mm)->mmap_sem);
 #endif
 
+#define WMT_NORMAL 0
+#define WMT_NORMAL_TAGGED 1
+#define WMT_NORMAL_NC 2
+#define WMT_NORMAL_WT 3
+#define WMT_DEVICE_nGnRnE 4
+#define WMT_DEVICE_nGnRE 5
+#define WMT_DEVICE_GRE 6
+#define WMT_NORMAL_iNC_oWB 7
+
 bool is_file_exist(const char* filename);
 
 pte_t* page_from_virt_user(struct mm_struct* mm, uintptr_t va);
@@ -61,5 +70,7 @@ int give_root(void);
 int cfi_bypass(void);
 
 void __iomem* wuwa_ioremap_prot(uintptr_t phys_addr, size_t size, pgprot_t prot);
+
+int convert_wmt_to_pgprot(int wmt_type, pgprot_t* prot_out);
 
 #endif // WUWA_UTILS_H

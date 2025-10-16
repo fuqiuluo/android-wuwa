@@ -12,7 +12,8 @@ android-wuwa-y := \
     src/hook/wuwa_d0_mm_fault.o \
     src/proc/wuwa_proc.o \
     src/inlinehook/hijack_arm64.o \
-    src/utils/karray_list.o
+    src/utils/karray_list.o \
+    src/mm/wuwa_bindproc.o
 
 src := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 

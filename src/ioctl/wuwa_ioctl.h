@@ -2,6 +2,7 @@
 #define WUWA_IOCTL_H
 
 #include "wuwa_common.h"
+#include "wuwa_bindproc.h"
 
 struct wuwa_addr_translate_cmd {
     uintptr_t phy_addr; /* Output: Physical address after translation */
@@ -127,15 +128,6 @@ struct wuwa_give_root_cmd {
     int result; /* Output: 0 on success, negative error code on failure */
 };
 
-#define WMT_NORMAL 0
-#define WMT_NORMAL_TAGGED 1
-#define WMT_NORMAL_NC 2
-#define WMT_NORMAL_WT 3
-#define WMT_DEVICE_nGnRnE 4
-#define WMT_DEVICE_nGnRE 5
-#define WMT_DEVICE_GRE 6
-#define WMT_NORMAL_iNC_oWB 7
-
 struct wuwa_read_physical_memory_ioremap_cmd {
     pid_t pid; /* Input: Process ID owning the virtual address */
     uintptr_t src_va; /* Input: Virtual address to access */
@@ -152,6 +144,11 @@ struct wuwa_write_physical_memory_ioremap_cmd {
     size_t size; /* Input: Size of memory to read */
     uintptr_t phy_addr; /* Output: Physical address of the source virtual address */
     int prot; /* Input: Memory protection type (use MT_*) */
+};
+
+struct wuwa_bind_proc_cmd {
+    pid_t pid; /* Input: Process ID owning the virtual address */
+    int fd; /* Output: Anno File Descriptor */
 };
 
 /* IOCTL command for virtual to physical address translation */
@@ -178,6 +175,7 @@ struct wuwa_write_physical_memory_ioremap_cmd {
 #define WUWA_IOCTL_GIVE_ROOT _IOWR('W', 15, struct wuwa_give_root_cmd)
 #define WUWA_IOCTL_READ_MEMORY_IOREMAP _IOWR('W', 16, struct wuwa_read_physical_memory_ioremap_cmd)
 #define WUWA_IOCTL_WRITE_MEMORY_IOREMAP _IOWR('W', 17, struct wuwa_write_physical_memory_ioremap_cmd)
+#define WUWA_IOCTL_BIND_PROC _IOWR('W', 18, struct wuwa_bind_proc_cmd)
 
 int do_vaddr_translate(struct socket* sock, void __user* arg);
 int do_debug_info(struct socket* sock, void __user* arg);
@@ -220,6 +218,7 @@ static const struct ioctl_cmd_map {
     {.cmd = WUWA_IOCTL_GIVE_ROOT, .handler = do_give_root},
     {.cmd = WUWA_IOCTL_READ_MEMORY_IOREMAP, .handler = do_read_physical_memory_ioremap},
     {.cmd = WUWA_IOCTL_WRITE_MEMORY_IOREMAP, .handler = do_write_physical_memory_ioremap},
+    {.cmd = WUWA_IOCTL_BIND_PROC, .handler = do_bind_proc},
     {.cmd = 0, .handler = NULL} /* Sentinel to mark end of array */
 };
 
