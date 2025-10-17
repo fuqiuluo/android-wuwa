@@ -10,7 +10,6 @@
 #include <linux/syscalls.h>
 #include <linux/types.h>
 #include "wuwa_common.h"
-#include "wuwa_d0_mm_fault.h"
 #include "wuwa_kallsyms.h"
 #include "wuwa_protocol.h"
 #include "wuwa_safe_signal.h"
@@ -48,12 +47,6 @@ static int __init wuwa_init(void) {
         wuwa_err("wuwa_safe_signal_init failed: %d\n", ret);
         goto clean_sig;
     }
-
-    ret = init_d0_mm_fault();
-    if (ret) {
-        wuwa_err("init_d0_mm_fault failed: %d\n", ret);
-        goto clean_d0;
-    }
 #endif
 
 
@@ -85,7 +78,6 @@ static void __exit wuwa_exit(void) {
     wuwa_proto_cleanup();
 #if defined(BUILD_HIDE_SIGNAL)
     wuwa_safe_signal_cleanup();
-    cleanup_d0_mm_fault();
 #endif
 }
 
