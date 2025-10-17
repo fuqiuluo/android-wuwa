@@ -24,5 +24,5 @@ jobs:
           - android16-6.12
     with:
       kmi: ${{ matrix.kmi }}
-      ddk_release: '20251007'
+      ddk_release: '20251016'
       module_name: 'android-wuwa'
