@@ -16,7 +16,7 @@ android-wuwa-y := \
 
 src := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 
-KDIR := $(KERNEL_SRC)
+KDIR := $(KDIR)
 MDIR := $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 $(info -- KDIR: $(KDIR))
