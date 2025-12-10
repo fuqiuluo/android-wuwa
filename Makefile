@@ -38,6 +38,8 @@ ccflags-y += -Wno-declaration-after-statement -Wno-unused-function -Wno-unused-v
 #ccflags-y += -DBUILD_HIDE_SIGNAL
 #ccflags-y += -DPTE_WALK
 ccflags-y += -DBUILD_NO_CFI
+# 如果 Android 12 5.10 内核出现 page_pinner_inited 导出失败 需要先禁用DMA buffer 创建作为临时处理方案
+# ccflags-y += -DSKIP_DMA_BUF_NS
 
 all:
 	make -C $(KDIR) M=$(MDIR) modules
