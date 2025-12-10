@@ -1,6 +1,9 @@
 #ifndef WUWA_IOCTL_H
 #define WUWA_IOCTL_H
 
+// Android 12 5.10 内核: 如果出现 page_pinner_inited 或 do_create_proc_dma_buf 符号未导出，取消下面的注释
+// #define SKIP_DMA_BUF_NS 1
+
 #include "wuwa_common.h"
 #include "wuwa_bindproc.h"
 
